@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "901241848860",
+    "project_id": "leguejuste",
+    "storage_bucket": "leguejuste.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901241848860:android:4144be0779607adb89cbd9",
+        "android_client_info": {
+          "package_name": "com.leguejuste.leguejuste"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLrFlhzyP8AHfJIp6gKQW_ptOZzoEpjzQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

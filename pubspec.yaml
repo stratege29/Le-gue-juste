@@ -1,0 +1,79 @@
+name: leguejuste
+description: "Application de partage de depenses entre amis"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # === FIREBASE ===
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.0
+  cloud_firestore: ^5.5.0
+  firebase_storage: ^12.3.2
+
+  # === IMAGE PICKER ===
+  image_picker: ^1.1.2
+
+  # === STATE MANAGEMENT ===
+  flutter_riverpod: ^2.6.1
+
+  # === ROUTING ===
+  go_router: ^14.6.0
+
+  # === LOCAL STORAGE (Offline) ===
+  shared_preferences: ^2.3.5
+  path_provider: ^2.1.5
+
+  # === QR CODE ===
+  mobile_scanner: ^6.0.10
+  pretty_qr_code: ^3.4.0
+
+  # === NETWORKING & CONNECTIVITY ===
+  connectivity_plus: ^6.0.5
+
+  # === UI/UX ===
+  flutter_screenutil: ^5.9.3
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
+
+  # === UTILITIES ===
+  intl: any
+  uuid: ^4.5.1
+  equatable: ^2.0.5
+  share_plus: ^10.0.0
+
+  # === PHONE INPUT ===
+  intl_phone_field: ^3.2.0
+
+  # === PERMISSIONS ===
+  permission_handler: ^11.3.1
+
+  # === JSON ===
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  # === CODE GENERATION ===
+  build_runner: ^2.4.13
+  json_serializable: ^6.8.0
+
+  # === TESTING ===
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
