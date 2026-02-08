@@ -1,12 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/constants/route_constants.dart';
@@ -47,18 +45,23 @@ class ProfileScreen extends ConsumerWidget {
                   children: [
                     Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: AppColors.gray200,
-                          backgroundImage:
-                              user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
-                          child: user?.avatarUrl == null
-                              ? Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: AppColors.gray500,
-                                )
-                              : null,
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppColors.primaryGradient,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.surfaceLight,
+                            ),
+                            child: EmojiAvatar(
+                              avatarUrl: user?.avatarUrl,
+                              radius: 48,
+                            ),
+                          ),
                         ),
                         Positioned(
                           bottom: 0,
@@ -71,7 +74,7 @@ class ProfileScreen extends ConsumerWidget {
                               border: Border.all(color: Colors.white, width: 2),
                             ),
                             child: const Icon(
-                              Icons.camera_alt,
+                              Icons.edit,
                               size: 16,
                               color: Colors.white,
                             ),
@@ -141,45 +144,37 @@ class ProfileScreen extends ConsumerWidget {
                 onTap: () => context.push(RouteConstants.notifications),
               ),
               const SizedBox(height: 24),
-              // Logout button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Deconnexion'),
-                        content: const Text(
-                            'Etes-vous sur de vouloir vous deconnecter?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Annuler'),
+              // Logout button - subtle style
+              TextButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Deconnexion'),
+                      content: const Text(
+                          'Etes-vous sur de vouloir vous deconnecter?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Annuler'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            ref.read(authNotifierProvider.notifier).signOut();
+                          },
+                          child: const Text(
+                            'Deconnecter',
+                            style: TextStyle(color: AppColors.error),
                           ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              ref.read(authNotifierProvider.notifier).signOut();
-                            },
-                            child: const Text(
-                              'Deconnecter',
-                              style: TextStyle(color: AppColors.error),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.logout, color: AppColors.error),
-                  label: const Text(
-                    'Deconnexion',
-                    style: TextStyle(color: AppColors.error),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.error),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Se deconnecter',
+                  style: TextStyle(color: AppColors.gray500, fontSize: 14),
                 ),
               ),
             ],
@@ -291,7 +286,7 @@ class ProfileScreen extends ConsumerWidget {
                       context: context,
                       applicationName: 'LeGuJuste',
                       applicationVersion: '1.0.0',
-                      applicationLegalese: '© 2025 LeGuJuste',
+                      applicationLegalese: '\u00A9 2025 LeGuJuste',
                     );
                   },
                 ),
@@ -346,7 +341,11 @@ class ProfileScreen extends ConsumerWidget {
   void _showEditProfileSheet(BuildContext context, WidgetRef ref) {
     final user = ref.read(currentUserProvider).valueOrNull;
     final controller = TextEditingController(text: user?.displayName ?? '');
-    File? selectedImage;
+    // Extract current emoji if set
+    String? selectedEmoji;
+    if (user?.avatarUrl != null && user!.avatarUrl!.startsWith('emoji:')) {
+      selectedEmoji = user.avatarUrl!.substring(6);
+    }
     bool isLoading = false;
 
     showModalBottomSheet(
@@ -384,70 +383,51 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                 ),
                 const SizedBox(height: 24),
-                // Avatar selection
-                GestureDetector(
-                  onTap: isLoading ? null : () async {
-                    HapticFeedback.lightImpact();
-                    final source = await _showImageSourceDialog(context);
-                    if (source != null) {
-                      final picker = ImagePicker();
-                      final pickedFile = await picker.pickImage(
-                        source: source,
-                        maxWidth: 512,
-                        maxHeight: 512,
-                        imageQuality: 80,
-                      );
-                      if (pickedFile != null) {
-                        setState(() {
-                          selectedImage = File(pickedFile.path);
-                        });
-                      }
-                    }
-                  },
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: AppColors.gray200,
-                        backgroundImage: selectedImage != null
-                            ? FileImage(selectedImage!)
-                            : (user?.avatarUrl != null
-                                ? NetworkImage(user!.avatarUrl!) as ImageProvider
-                                : null),
-                        child: (selectedImage == null && user?.avatarUrl == null)
-                            ? Icon(
-                                Icons.person,
-                                size: 50,
-                                color: AppColors.gray500,
-                              )
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            size: 20,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                // Current avatar preview
+                EmojiAvatar(
+                  avatarUrl: selectedEmoji != null ? 'emoji:$selectedEmoji' : user?.avatarUrl,
+                  radius: 50,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
-                  'Appuyez pour changer la photo',
+                  'Choisissez un avatar',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.gray500,
                       ),
+                ),
+                const SizedBox(height: 12),
+                // Emoji grid
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: AppConstants.avatarEmojis.map((emoji) {
+                    final isSelected = selectedEmoji == emoji;
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          selectedEmoji = isSelected ? null : emoji;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.gray100,
+                          border: Border.all(
+                            color: isSelected ? AppColors.primary : Colors.transparent,
+                            width: 2.5,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 24),
                 // Name field
@@ -481,14 +461,11 @@ class ProfileScreen extends ConsumerWidget {
                       setState(() => isLoading = true);
 
                       try {
-                        // Upload image if selected
-                        if (selectedImage != null) {
-                          await ref.read(authNotifierProvider.notifier).uploadAvatar(selectedImage!);
-                        }
+                        final avatarValue = selectedEmoji != null ? 'emoji:$selectedEmoji' : null;
 
-                        // Update name
                         await ref.read(authNotifierProvider.notifier).updateProfile(
                           displayName: name,
+                          avatarUrl: avatarValue,
                         );
 
                         // Force refresh user data and wait for it
@@ -527,58 +504,6 @@ class ProfileScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Future<ImageSource?> _showImageSourceDialog(BuildContext context) async {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Choisir une photo',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 24),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.camera_alt, color: AppColors.primary),
-              ),
-              title: const Text('Prendre une photo'),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(ctx, ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.photo_library, color: AppColors.secondary),
-              ),
-              title: const Text('Choisir dans la galerie'),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(ctx, ImageSource.gallery);
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

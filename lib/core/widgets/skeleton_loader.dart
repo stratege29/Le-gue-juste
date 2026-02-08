@@ -40,7 +40,8 @@ class SkeletonLoader extends StatelessWidget {
 
     return Shimmer.fromColors(
       baseColor: isDark ? AppColors.gray800 : AppColors.gray200,
-      highlightColor: isDark ? AppColors.gray700 : AppColors.gray100,
+      highlightColor: isDark ? AppColors.gray700 : AppColors.primaryLight.withValues(alpha: 0.15),
+      period: const Duration(milliseconds: 1500),
       child: Container(
         width: width,
         height: height,
@@ -95,7 +96,8 @@ class SkeletonSummaryCard extends StatelessWidget {
 
     return Shimmer.fromColors(
       baseColor: isDark ? AppColors.gray800 : AppColors.gray300,
-      highlightColor: isDark ? AppColors.gray700 : AppColors.gray200,
+      highlightColor: isDark ? AppColors.gray700 : AppColors.primaryLight.withValues(alpha: 0.2),
+      period: const Duration(milliseconds: 1500),
       child: Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(20),

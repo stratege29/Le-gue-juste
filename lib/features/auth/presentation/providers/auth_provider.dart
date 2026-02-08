@@ -116,9 +116,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
           await _signInWithCredential(credential);
         },
         verificationFailed: (FirebaseAuthException e) {
+          print('DEBUG verificationFailed: code=${e.code} message=${e.message}');
           state = state.copyWith(
             isLoading: false,
-            errorMessage: _mapAuthError(e),
+            errorMessage: '[${e.code}] ${e.message ?? _mapAuthError(e)}',
           );
         },
         codeSent: (String verificationId, int? resendToken) {
@@ -135,9 +136,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         },
       );
     } catch (e) {
+      print('DEBUG sendOtp catch: $e');
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'An error occurred. Please try again.',
+        errorMessage: 'Erreur: $e',
       );
     }
   }

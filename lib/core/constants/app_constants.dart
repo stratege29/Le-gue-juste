@@ -19,7 +19,7 @@ class AppConstants {
   static const int defaultPageSize = 20;
 
   // Currency
-  static const String defaultCurrency = 'EUR';
+  static const String defaultCurrency = 'XOF';
   static const Map<String, String> currencySymbols = {
     'EUR': '\u20AC',
     'USD': '\$',
@@ -27,6 +27,20 @@ class AppConstants {
     'XOF': 'CFA',
     'XAF': 'CFA',
   };
+
+  // Avatar emojis
+  static const List<String> avatarEmojis = [
+    '\u{1F60A}', // smiling face
+    '\u{1F60E}', // sunglasses
+    '\u{1F981}', // lion
+    '\u{2B50}',  // star
+    '\u{2764}\u{FE0F}',  // heart
+    '\u{1F451}', // crown
+    '\u{1F525}', // fire
+    '\u{1F680}', // rocket
+    '\u{1F308}', // rainbow
+    '\u{2728}',  // sparkles
+  ];
 
   // Balance threshold (for considering as settled)
   static const double balanceThreshold = 0.01;

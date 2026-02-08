@@ -80,11 +80,11 @@ class SummaryCard extends StatelessWidget {
   List<Color> get _gradientColors {
     switch (balanceType) {
       case BalanceType.positive:
-        return [AppColors.success, AppColors.success.withValues(alpha: 0.8)];
+        return [const Color(0xFF22C55E), const Color(0xFF14B8A6)];
       case BalanceType.negative:
-        return [AppColors.error, AppColors.error.withValues(alpha: 0.8)];
+        return [const Color(0xFFEF4444), const Color(0xFFE11D48)];
       case BalanceType.neutral:
-        return [AppColors.gray500, AppColors.gray600];
+        return [AppColors.primary, const Color(0xFF7C3AED)];
     }
   }
 
@@ -108,6 +108,13 @@ class SummaryCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: _gradientColors.first.withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -120,7 +127,7 @@ class SummaryCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               formattedAmount,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -167,12 +174,15 @@ class DebtSummaryCard extends StatelessWidget {
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary, AppColors.primaryDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          gradient: AppColors.primaryGradient,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Row(
           children: [

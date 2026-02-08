@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -23,17 +24,13 @@ class GroupsListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Mes Groupes'),
         actions: [
-          Semantics(
-            label: 'Creer un nouveau groupe',
-            button: true,
-            child: IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'Creer un groupe',
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                context.push('/groups/create');
-              },
-            ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Scanner un QR code',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.push(RouteConstants.scanQr);
+            },
           ),
         ],
       ),
@@ -77,11 +74,70 @@ class GroupsListScreen extends ConsumerWidget {
             itemCount: groups.length,
             itemBuilder: (context, index) {
               final group = groups[index];
-              return _GroupCard(group: group);
+              return _AnimatedGroupCard(
+                index: index,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: _GroupCard(group: group),
+                ),
+              );
             },
           ),
         );
       },
+    );
+  }
+}
+
+class _AnimatedGroupCard extends StatefulWidget {
+  final Widget child;
+  final int index;
+
+  const _AnimatedGroupCard({required this.child, required this.index});
+
+  @override
+  State<_AnimatedGroupCard> createState() => _AnimatedGroupCardState();
+}
+
+class _AnimatedGroupCardState extends State<_AnimatedGroupCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    Future.delayed(Duration(milliseconds: 80 * widget.index), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: widget.child,
+      ),
     );
   }
 }
@@ -107,84 +163,95 @@ class _GroupCard extends ConsumerWidget {
     return Semantics(
       label: '${group.name}, ${group.memberCount} membres, $balanceLabel $formattedBalance',
       button: true,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/groups/${group.id}');
-          },
+      child: Container(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Group avatar
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: group.imageUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            group.imageUrl!,
-                            fit: BoxFit.cover,
+          border: Border(
+            left: BorderSide(
+              color: isOwed ? AppColors.success : owes ? AppColors.error : AppColors.gray300,
+              width: 3,
+            ),
+          ),
+        ),
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push('/groups/${group.id}');
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Group avatar
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: group.imageUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(
+                              group.imageUrl!,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.group,
+                            color: AppColors.primary,
+                            size: 28,
                           ),
-                        )
-                      : const Icon(
-                          Icons.group,
-                          color: AppColors.primary,
-                          size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  // Group info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          group.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                ),
-                const SizedBox(width: 16),
-                // Group info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(height: 4),
+                        Text(
+                          '${group.memberCount} membre${group.memberCount > 1 ? 's' : ''}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.gray600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Balance indicator
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        group.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        formattedBalance,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: balanceColor,
                               fontWeight: FontWeight.w600,
                             ),
                       ),
-                      const SizedBox(height: 4),
                       Text(
-                        '${group.memberCount} membre${group.memberCount > 1 ? 's' : ''}',
+                        balanceLabel,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.gray600,
+                              color: AppColors.gray500,
                             ),
                       ),
                     ],
                   ),
-                ),
-                // Balance indicator
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      formattedBalance,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: balanceColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    Text(
-                      balanceLabel,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.gray500,
-                          ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, color: AppColors.gray400),
-              ],
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right, color: AppColors.gray400),
+                ],
+              ),
             ),
           ),
         ),

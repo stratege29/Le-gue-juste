@@ -107,16 +107,24 @@ class GroupDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
-          floatingActionButton: Semantics(
-            label: 'Ajouter une depense',
-            button: true,
-            child: FloatingActionButton.extended(
-              onPressed: () {
-                HapticFeedback.mediumImpact();
-                _showAddExpenseSheet(context, ref, groupId);
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Depense'),
+          bottomNavigationBar: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    _showAddExpenseSheet(context, ref, groupId);
+                  },
+                  icon: const Icon(Icons.add, size: 24),
+                  label: const Text(
+                    'Nouvelle depense',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
             ),
           ),
         );

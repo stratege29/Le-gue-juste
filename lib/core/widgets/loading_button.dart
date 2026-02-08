@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 
 /// A button that shows a loading indicator when an async operation is in progress.
 ///
-/// Provides haptic feedback on press and meets minimum touch target requirements.
+/// Provides haptic feedback on press, smooth morphing animation between states,
+/// and meets minimum touch target requirements.
 class LoadingButton extends StatelessWidget {
   /// The button label
   final String label;
@@ -43,41 +44,67 @@ class LoadingButton extends StatelessWidget {
       onPressed!();
     }
 
-    final child = isLoading
-        ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          )
-        : icon != null
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 18),
-                  const SizedBox(width: 8),
-                  Text(label),
-                ],
-              )
-            : Text(label);
+    final child = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: isLoading
+          ? const SizedBox(
+              key: ValueKey('loading'),
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          : icon != null
+              ? Row(
+                  key: const ValueKey('icon-label'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18),
+                    const SizedBox(width: 8),
+                    Text(label),
+                  ],
+                )
+              : Text(key: const ValueKey('label'), label),
+    );
+
+    // Animated width: shrink to circle when loading
+    final buttonChild = AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      constraints: BoxConstraints(
+        minWidth: isLoading ? minHeight : double.infinity,
+        minHeight: minHeight,
+      ),
+      child: child,
+    );
 
     switch (style) {
       case LoadingButtonStyle.elevated:
-        return SizedBox(
-          height: minHeight,
-          child: ElevatedButton(
-            onPressed: isDisabled ? null : handlePress,
-            child: child,
+        return Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            width: isLoading ? minHeight * 2 : double.infinity,
+            height: minHeight,
+            child: ElevatedButton(
+              onPressed: isDisabled ? null : handlePress,
+              child: buttonChild,
+            ),
           ),
         );
       case LoadingButtonStyle.outlined:
-        return SizedBox(
-          height: minHeight,
-          child: OutlinedButton(
-            onPressed: isDisabled ? null : handlePress,
-            child: child,
+        return Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            width: isLoading ? minHeight * 2 : double.infinity,
+            height: minHeight,
+            child: OutlinedButton(
+              onPressed: isDisabled ? null : handlePress,
+              child: buttonChild,
+            ),
           ),
         );
       case LoadingButtonStyle.text:

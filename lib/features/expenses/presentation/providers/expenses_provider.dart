@@ -265,6 +265,7 @@ class AddExpenseState {
   final Map<String, double> percentages;
   final DateTime? date;
   final String? category;
+  final String currency;
   final bool isLoading;
   final String? error;
 
@@ -278,6 +279,7 @@ class AddExpenseState {
     this.percentages = const {},
     this.date,
     this.category,
+    this.currency = 'XOF',
     this.isLoading = false,
     this.error,
   });
@@ -292,6 +294,7 @@ class AddExpenseState {
     Map<String, double>? percentages,
     DateTime? date,
     String? category,
+    String? currency,
     bool? isLoading,
     String? error,
   }) {
@@ -305,6 +308,7 @@ class AddExpenseState {
       percentages: percentages ?? this.percentages,
       date: date ?? this.date,
       category: category ?? this.category,
+      currency: currency ?? this.currency,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -419,6 +423,10 @@ class AddExpenseNotifier extends StateNotifier<AddExpenseState> {
 
   void setCategory(String? category) {
     state = state.copyWith(category: category);
+  }
+
+  void setCurrency(String currency) {
+    state = state.copyWith(currency: currency);
   }
 
   void reset() {

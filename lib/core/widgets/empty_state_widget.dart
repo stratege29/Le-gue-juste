@@ -7,7 +7,7 @@ import '../theme/app_colors.dart';
 ///
 /// Follows accessibility guidelines with proper Semantics and minimum
 /// touch targets of 48x48px for action buttons.
-class EmptyStateWidget extends StatelessWidget {
+class EmptyStateWidget extends StatefulWidget {
   /// The icon to display (defaults to a generic empty icon)
   final IconData icon;
 
@@ -41,48 +41,86 @@ class EmptyStateWidget extends StatelessWidget {
   });
 
   @override
+  State<EmptyStateWidget> createState() => _EmptyStateWidgetState();
+}
+
+class _EmptyStateWidgetState extends State<EmptyStateWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: '$title. ${description ?? ""}',
+      label: '${widget.title}. ${widget.description ?? ""}',
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: iconSize,
-                color: iconColor ?? AppColors.gray400,
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  width: widget.iconSize + 32,
+                  height: widget.iconSize + 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: (widget.iconColor ?? AppColors.gray400).withValues(alpha: 0.1),
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    size: widget.iconSize * 0.6,
+                    color: widget.iconColor ?? AppColors.gray400,
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               Text(
-                title,
+                widget.title,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: AppColors.gray600,
                     ),
                 textAlign: TextAlign.center,
               ),
-              if (description != null) ...[
+              if (widget.description != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  description!,
+                  widget.description!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.gray500,
                       ),
                   textAlign: TextAlign.center,
                 ),
               ],
-              if (actionLabel != null && onAction != null) ...[
+              if (widget.actionLabel != null && widget.onAction != null) ...[
                 const SizedBox(height: 24),
                 SizedBox(
                   height: 48, // Minimum touch target
-                  child: ElevatedButton(
+                  child: FilledButton.tonal(
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      onAction!();
+                      widget.onAction!();
                     },
-                    child: Text(actionLabel!),
+                    child: Text(widget.actionLabel!),
                   ),
                 ),
               ],

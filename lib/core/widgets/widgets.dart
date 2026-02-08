@@ -8,6 +8,7 @@ library;
 
 export 'animated_page.dart';
 export 'bottom_sheet_menu.dart';
+export 'emoji_avatar.dart';
 export 'contextual_empty_states.dart';
 export 'empty_state_widget.dart';
 export 'haptic_wrapper.dart';

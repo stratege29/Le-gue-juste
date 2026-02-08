@@ -80,7 +80,7 @@ class BalancesScreen extends ConsumerWidget {
             currencyCounts[symbol] = (currencyCounts[symbol] ?? 0) + 1;
           }
           final mostCommonSymbol = currencyCounts.entries.isEmpty
-              ? '€'
+              ? '\u20AC'
               : (currencyCounts.entries.reduce((a, b) => a.value >= b.value ? a : b)).key;
 
           return RefreshIndicator(
@@ -152,84 +152,99 @@ class BalancesScreen extends ConsumerWidget {
           (d) => d.fromUserId == currentUserId || d.toUserId == currentUserId
         ).toList();
 
-        return Semantics(
-          label: '${info.groupName}: ${isPositive ? "on vous doit" : "vous devez"} $formattedAmount',
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ExpansionTile(
-              leading: IconBadge.balance(isPositive: isPositive),
-              title: Text(
-                info.groupName,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(
-                isPositive ? 'On vous doit' : 'Vous devez',
-                style: TextStyle(
-                  color: isPositive ? AppColors.success : AppColors.error,
-                  fontSize: 12,
+        return _AnimatedBalanceCard(
+          index: index,
+          child: Semantics(
+            label: '${info.groupName}: ${isPositive ? "on vous doit" : "vous devez"} $formattedAmount',
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border(
+                  left: BorderSide(
+                    color: isPositive ? AppColors.success : AppColors.error,
+                    width: 3,
+                  ),
                 ),
               ),
-              trailing: Text(
-                formattedAmount,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: isPositive ? AppColors.success : AppColors.error,
-                ),
-              ),
-              children: userDebts.isEmpty
-                  ? [
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Aucun detail disponible'),
-                      ),
-                    ]
-                  : userDebts.map((debt) {
-                      final isUserDebtor = debt.fromUserId == currentUserId;
-                      final otherUserId = isUserDebtor ? debt.toUserId : debt.fromUserId;
-                      final otherUserName = memberNames[otherUserId] ?? 'Utilisateur';
-                      final amount = NumberFormat.currency(
-                        symbol: info.currencySymbol,
-                        decimalDigits: 2,
-                      ).format(debt.amount);
-
-                      return ListTile(
-                        dense: true,
-                        leading: Icon(
-                          isUserDebtor ? Icons.arrow_upward : Icons.arrow_downward,
-                          color: isUserDebtor ? AppColors.error : AppColors.success,
-                          size: 20,
-                        ),
-                        title: Text(
-                          isUserDebtor
-                              ? 'Vous devez $amount a $otherUserName'
-                              : '$otherUserName vous doit $amount',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        trailing: TextButton.icon(
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            _showSettleDialog(
-                              context,
-                              ref,
-                              groupId: info.groupId,
-                              fromUserId: debt.fromUserId,
-                              toUserId: debt.toUserId,
-                              amount: debt.amount,
-                              currencySymbol: info.currencySymbol,
-                              otherUserName: otherUserName,
-                              isUserDebtor: isUserDebtor,
-                            );
-                          },
-                          icon: const Icon(Icons.check_circle_outline, size: 18),
-                          label: const Text('Regler'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.success,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Card(
+                margin: EdgeInsets.zero,
+                child: ExpansionTile(
+                  leading: IconBadge.balance(isPositive: isPositive),
+                  title: Text(
+                    info.groupName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    isPositive ? 'On vous doit' : 'Vous devez',
+                    style: TextStyle(
+                      color: isPositive ? AppColors.success : AppColors.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: Text(
+                    formattedAmount,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: isPositive ? AppColors.success : AppColors.error,
+                    ),
+                  ),
+                  children: userDebts.isEmpty
+                      ? [
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('Aucun detail disponible'),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        ]
+                      : userDebts.map((debt) {
+                          final isUserDebtor = debt.fromUserId == currentUserId;
+                          final otherUserId = isUserDebtor ? debt.toUserId : debt.fromUserId;
+                          final otherUserName = memberNames[otherUserId] ?? 'Utilisateur';
+                          final amount = NumberFormat.currency(
+                            symbol: info.currencySymbol,
+                            decimalDigits: 2,
+                          ).format(debt.amount);
+
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(
+                              isUserDebtor ? Icons.arrow_upward : Icons.arrow_downward,
+                              color: isUserDebtor ? AppColors.error : AppColors.success,
+                              size: 20,
+                            ),
+                            title: Text(
+                              isUserDebtor
+                                  ? 'Vous devez $amount a $otherUserName'
+                                  : '$otherUserName vous doit $amount',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            trailing: FilledButton.tonal(
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                _showSettleDialog(
+                                  context,
+                                  ref,
+                                  groupId: info.groupId,
+                                  fromUserId: debt.fromUserId,
+                                  toUserId: debt.toUserId,
+                                  amount: debt.amount,
+                                  currencySymbol: info.currencySymbol,
+                                  otherUserName: otherUserName,
+                                  isUserDebtor: isUserDebtor,
+                                );
+                              },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.success.withValues(alpha: 0.15),
+                                foregroundColor: AppColors.success,
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                              ),
+                              child: const Text('Regler'),
+                            ),
+                          );
+                        }).toList(),
+                ),
+              ),
             ),
           ),
         );
@@ -311,6 +326,59 @@ class BalancesScreen extends ConsumerWidget {
         SnackbarManager.showError(context, 'Erreur: $e');
       }
     }
+  }
+}
+
+class _AnimatedBalanceCard extends StatefulWidget {
+  final Widget child;
+  final int index;
+
+  const _AnimatedBalanceCard({required this.child, required this.index});
+
+  @override
+  State<_AnimatedBalanceCard> createState() => _AnimatedBalanceCardState();
+}
+
+class _AnimatedBalanceCardState extends State<_AnimatedBalanceCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    Future.delayed(Duration(milliseconds: 80 * widget.index), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: widget.child,
+      ),
+    );
   }
 }
 

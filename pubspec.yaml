@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
 
@@ -17,9 +19,6 @@ dependencies:
   firebase_auth: ^5.3.0
   cloud_firestore: ^5.5.0
   firebase_storage: ^12.3.2
-
-  # === IMAGE PICKER ===
-  image_picker: ^1.1.2
 
   # === STATE MANAGEMENT ===
   flutter_riverpod: ^2.6.1
@@ -39,6 +38,7 @@ dependencies:
   connectivity_plus: ^6.0.5
 
   # === UI/UX ===
+  google_fonts: ^6.2.1
   flutter_screenutil: ^5.9.3
   shimmer: ^3.0.0
   cached_network_image: ^3.4.1
