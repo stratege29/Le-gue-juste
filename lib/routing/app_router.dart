@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' show sin, pi;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -234,14 +233,13 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _mainController;
-  late AnimationController _floatController;
+  late AnimationController _shimmerController;
   late AnimationController _dotsController;
 
   // Staggered intervals for main animations
+  late Animation<double> _overlayOpacity;
   late Animation<double> _logoScale;
   late Animation<double> _logoOpacity;
-  late Animation<double> _titleOpacity;
-  late Animation<double> _titleSlide;
   late Animation<double> _taglineOpacity;
   late Animation<double> _taglineSlide;
   late Animation<double> _dotsOpacity;
@@ -251,57 +249,51 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _mainController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 2500),
     );
-    _floatController = AnimationController(
+    _shimmerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4000),
+      duration: const Duration(milliseconds: 2000),
     )..repeat();
     _dotsController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat();
 
-    _logoScale = Tween<double>(begin: 0.6, end: 1.0).animate(
+    _overlayOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _mainController,
-        curve: const Interval(0.0, 0.3, curve: Curves.elasticOut),
+        curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
+      ),
+    );
+    _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0.0, 0.4, curve: Curves.elasticOut),
       ),
     );
     _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _mainController,
-        curve: const Interval(0.0, 0.2, curve: Curves.easeOut),
-      ),
-    );
-    _titleOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.2, 0.5, curve: Curves.easeOut),
-      ),
-    );
-    _titleSlide = Tween<double>(begin: 20.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _mainController,
-        curve: const Interval(0.2, 0.5, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.25, curve: Curves.easeOut),
       ),
     );
     _taglineOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _mainController,
-        curve: const Interval(0.4, 0.7, curve: Curves.easeOut),
+        curve: const Interval(0.3, 0.6, curve: Curves.easeOut),
       ),
     );
     _taglineSlide = Tween<double>(begin: 15.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _mainController,
-        curve: const Interval(0.4, 0.7, curve: Curves.easeOutCubic),
+        curve: const Interval(0.3, 0.6, curve: Curves.easeOutCubic),
       ),
     );
     _dotsOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _mainController,
-        curve: const Interval(0.6, 1.0, curve: Curves.easeOut),
+        curve: const Interval(0.5, 0.8, curve: Curves.easeOut),
       ),
     );
 
@@ -311,7 +303,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _mainController.dispose();
-    _floatController.dispose();
+    _shimmerController.dispose();
     _dotsController.dispose();
     super.dispose();
   }
@@ -329,169 +321,185 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Gradient background
-          Container(
+          // Full-screen splash illustration background
+          SizedBox(
             width: size.width,
             height: size.height,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+            child: Image.asset(
+              'assets/images/splash_bg.jpg',
+              fit: BoxFit.cover,
             ),
           ),
 
-          // Floating decorative circles
+          // Dark gradient overlays for readability
           AnimatedBuilder(
-            animation: _floatController,
+            animation: _mainController,
             builder: (context, _) {
-              final floatValue = sin(_floatController.value * 2 * pi) * 10;
-              return Stack(
-                children: [
-                  Positioned(
-                    top: size.height * 0.12 + floatValue,
-                    left: -40,
-                    child: Container(
-                      width: 180,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.05),
+              return Opacity(
+                opacity: _overlayOpacity.value,
+                child: Stack(
+                  children: [
+                    // Top overlay: dark to transparent
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: size.height * 0.45,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.4),
+                              Colors.black.withValues(alpha: 0.15),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.6, 1.0],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: size.height * 0.55 - floatValue * 0.7,
-                    right: -60,
-                    child: Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.07),
+                    // Bottom overlay: transparent to dark
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: size.height * 0.45,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.2),
+                              Colors.black.withValues(alpha: 0.55),
+                            ],
+                            stops: const [0.0, 0.4, 1.0],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    bottom: size.height * 0.08 + floatValue * 0.5,
-                    left: size.width * 0.25,
-                    child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.06),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               );
             },
           ),
 
           // Main content
-          Center(
-            child: AnimatedBuilder(
-              animation: _mainController,
-              builder: (context, _) {
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo circle
-                    Opacity(
-                      opacity: _logoOpacity.value,
-                      child: Transform.scale(
-                        scale: _logoScale.value,
-                        child: Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.15),
-                          ),
-                          child: const Icon(
-                            Icons.account_balance_wallet,
-                            size: 56,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // App name
-                    Opacity(
-                      opacity: _titleOpacity.value,
-                      child: Transform.translate(
-                        offset: Offset(0, _titleSlide.value),
-                        child: Text(
-                          'LeGuJuste',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Tagline
-                    Opacity(
-                      opacity: _taglineOpacity.value,
-                      child: Transform.translate(
-                        offset: Offset(0, _taglineSlide.value),
-                        child: Text(
-                          'Les bons comptes font les bons amis',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontStyle: FontStyle.italic,
-                            color: Colors.white.withValues(alpha: 0.8),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 64),
-
-                    // Pulsing dots
-                    Opacity(
-                      opacity: _dotsOpacity.value,
+          AnimatedBuilder(
+            animation: _mainController,
+            builder: (context, _) {
+              return Column(
+                children: [
+                  // Logo in upper portion (~20% from top)
+                  SizedBox(height: size.height * 0.12),
+                  Opacity(
+                    opacity: _logoOpacity.value,
+                    child: Transform.scale(
+                      scale: _logoScale.value,
                       child: AnimatedBuilder(
-                        animation: _dotsController,
-                        builder: (context, _) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(3, (index) {
-                              final scale = _dotScale(index);
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
-                                child: Transform.scale(
-                                  scale: scale,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
+                        animation: _shimmerController,
+                        builder: (context, child) {
+                          return ShaderMask(
+                            shaderCallback: (bounds) {
+                              final shimmerX =
+                                  _shimmerController.value * 3.0 - 1.0;
+                              return LinearGradient(
+                                begin: Alignment(shimmerX - 0.3, 0),
+                                end: Alignment(shimmerX + 0.3, 0),
+                                colors: [
+                                  Colors.white,
+                                  Colors.white.withValues(alpha: 0.5),
+                                  Colors.white,
+                                ],
+                                stops: const [0.0, 0.5, 1.0],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.modulate,
+                            child: child!,
                           );
                         },
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          width: size.width * 0.6,
+                        ),
                       ),
                     ),
-                  ],
-                );
-              },
-            ),
+                  ),
+
+                  const Spacer(),
+
+                  // Tagline
+                  Opacity(
+                    opacity: _taglineOpacity.value,
+                    child: Transform.translate(
+                      offset: Offset(0, _taglineSlide.value),
+                      child: Text(
+                        'Les bons comptes font les bons amis',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Pulsing dots
+                  Opacity(
+                    opacity: _dotsOpacity.value,
+                    child: AnimatedBuilder(
+                      animation: _dotsController,
+                      builder: (context, _) {
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(3, (index) {
+                            final scale = _dotScale(index);
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              child: Transform.scale(
+                                scale: scale,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.4),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+
+                  SizedBox(height: size.height * 0.08),
+                ],
+              );
+            },
           ),
         ],
       ),
