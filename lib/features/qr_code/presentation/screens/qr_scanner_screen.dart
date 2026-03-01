@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/constants/firebase_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar_manager.dart';
+import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../friends/presentation/providers/friends_provider.dart';
@@ -29,6 +31,21 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   );
 
   bool _isProcessing = false;
+  bool _cameraPermissionDenied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCameraPermission();
+  }
+
+  Future<void> _checkCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    if (status.isDenied || status.isPermanentlyDenied) {
+      setState(() => _cameraPermissionDenied = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,75 +54,92 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         title: Text(
           widget.groupId != null ? 'Scanner pour inviter' : 'Scanner un QR code',
         ),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        actions: [
-          Semantics(
-            label: 'Activer ou desactiver le flash',
-            button: true,
-            child: IconButton(
-              icon: ValueListenableBuilder(
-                valueListenable: _controller,
-                builder: (context, state, child) {
-                  return Icon(
-                    state.torchState == TorchState.on
-                        ? Icons.flash_on
-                        : Icons.flash_off,
-                  );
-                },
-              ),
-              tooltip: 'Flash',
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                _controller.toggleTorch();
-              },
-            ),
-          ),
-          Semantics(
-            label: 'Changer de camera',
-            button: true,
-            child: IconButton(
-              icon: const Icon(Icons.cameraswitch),
-              tooltip: 'Changer de camera',
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                _controller.switchCamera();
-              },
-            ),
-          ),
-        ],
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          // Scanner
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
-          // Overlay
-          _buildScanOverlay(context),
-          // Instructions
-          Positioned(
-            bottom: 100,
-            left: 0,
-            right: 0,
-            child: Text(
-              'Placez le QR code dans le cadre',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 10,
-                        color: Colors.black.withValues(alpha: 0.5),
-                      ),
-                    ],
+        backgroundColor: _cameraPermissionDenied ? null : Colors.transparent,
+        foregroundColor: _cameraPermissionDenied ? null : Colors.white,
+        actions: _cameraPermissionDenied
+            ? null
+            : [
+                Semantics(
+                  label: 'Activer ou désactiver le flash',
+                  button: true,
+                  child: IconButton(
+                    icon: ValueListenableBuilder(
+                      valueListenable: _controller,
+                      builder: (context, state, child) {
+                        return Icon(
+                          state.torchState == TorchState.on
+                              ? Icons.flash_on
+                              : Icons.flash_off,
+                        );
+                      },
+                    ),
+                    tooltip: 'Flash',
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _controller.toggleTorch();
+                    },
                   ),
-            ),
-          ),
-        ],
+                ),
+                Semantics(
+                  label: 'Changer de caméra',
+                  button: true,
+                  child: IconButton(
+                    icon: const Icon(Icons.cameraswitch),
+                    tooltip: 'Changer de caméra',
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _controller.switchCamera();
+                    },
+                  ),
+                ),
+              ],
       ),
+      extendBodyBehindAppBar: !_cameraPermissionDenied,
+      body: _cameraPermissionDenied
+          ? EmptyStateWidget(
+              icon: Icons.camera_alt_outlined,
+              title: 'Accès caméra requis',
+              description:
+                  'Autorisez l\'accès à la caméra pour scanner les QR codes',
+              actionLabel: 'Ouvrir les paramètres',
+              onAction: () => openAppSettings(),
+            )
+          : Stack(
+              children: [
+                // Scanner
+                MobileScanner(
+                  controller: _controller,
+                  onDetect: _onDetect,
+                ),
+                // Overlay
+                _buildScanOverlay(context),
+                // Instructions — SafeArea aware for home indicator on iPhone
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 40),
+                      child: Text(
+                        'Placez le QR code dans le cadre',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 10,
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                ),
+                              ],
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -213,7 +247,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             .get();
 
         if (userQuery.docs.isEmpty) {
-          throw Exception('Utilisateur non trouve');
+          throw Exception('Utilisateur non trouvé');
         }
 
         final userData = userQuery.docs.first;
@@ -230,7 +264,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
           final memberIds = List<String>.from(group.data()?['memberIds'] ?? []);
           if (memberIds.contains(userId)) {
-            throw Exception('$userName est deja membre du groupe');
+            throw Exception('$userName est déjà membre du groupe');
           }
 
           // Add member to group
@@ -240,7 +274,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           );
 
           if (mounted) {
-            SnackbarManager.showSuccess(context, '$userName a ete ajoute au groupe!');
+            SnackbarManager.showSuccess(context, '$userName a été ajouté au groupe !');
             context.pop();
           }
         } else {
@@ -249,9 +283,9 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
           if (mounted) {
             if (success) {
-              SnackbarManager.showSuccess(context, '$userName a ete ajoute a vos amis!');
+              SnackbarManager.showSuccess(context, '$userName a été ajouté à vos amis !');
             } else {
-              SnackbarManager.showWarning(context, '$userName est deja dans vos amis');
+              SnackbarManager.showWarning(context, '$userName est déjà dans vos amis');
             }
             context.pop();
           }

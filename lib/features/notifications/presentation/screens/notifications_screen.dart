@@ -63,7 +63,7 @@ class NotificationsScreen extends ConsumerWidget {
             return const EmptyStateWidget(
               icon: Icons.notifications_none,
               title: 'Aucune notification',
-              description: 'Vous recevrez des notifications pour les nouvelles depenses et remboursements',
+              description: 'Vous recevrez des notifications pour les nouvelles dépenses et remboursements',
             );
           }
           return _buildNotificationsList(context, ref, notifications);
@@ -230,7 +230,7 @@ class NotificationsScreen extends ConsumerWidget {
     final diff = now.difference(date);
 
     if (diff.inMinutes < 1) {
-      return "A l'instant";
+      return "À l'instant";
     } else if (diff.inMinutes < 60) {
       return 'Il y a ${diff.inMinutes} min';
     } else if (diff.inHours < 24) {
@@ -249,7 +249,7 @@ class NotificationsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Supprimer toutes les notifications?'),
-        content: const Text('Cette action est irreversible.'),
+        content: const Text('Cette action est irréversible.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

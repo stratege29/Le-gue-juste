@@ -16,8 +16,8 @@ class NoGroupsEmptyState extends StatelessWidget {
       icon: Icons.group_add_outlined,
       iconColor: AppColors.primary,
       title: 'Aucun groupe',
-      description: 'Creez ou rejoignez un groupe pour commencer a partager vos depenses',
-      actionLabel: 'Creer un groupe',
+      description: 'Créez ou rejoignez un groupe pour commencer à partager vos dépenses',
+      actionLabel: 'Créer un groupe',
       onAction: onCreateGroup,
     );
   }
@@ -34,9 +34,9 @@ class NoExpensesEmptyState extends StatelessWidget {
     return _ContextualEmptyState(
       icon: Icons.receipt_long_outlined,
       iconColor: AppColors.secondary,
-      title: 'Aucune depense',
-      description: 'Ajoutez votre premiere depense pour commencer le partage',
-      actionLabel: 'Ajouter une depense',
+      title: 'Aucune dépense',
+      description: 'Ajoutez votre première dépense pour commencer le partage',
+      actionLabel: 'Ajouter une dépense',
       onAction: onAddExpense,
     );
   }
@@ -71,7 +71,7 @@ class NoNotificationsEmptyState extends StatelessWidget {
       icon: Icons.notifications_none_outlined,
       iconColor: AppColors.info,
       title: 'Aucune notification',
-      description: 'Vous recevrez des notifications quand quelqu\'un vous ajoutera a un groupe',
+      description: 'Vous recevrez des notifications quand quelqu\'un vous ajoutera à un groupe',
     );
   }
 }
@@ -85,8 +85,8 @@ class AllSettledEmptyState extends StatelessWidget {
     return const _ContextualEmptyState(
       icon: Icons.celebration_outlined,
       iconColor: AppColors.success,
-      title: 'Tout est equilibre!',
-      description: 'Felicitations, vous n\'avez aucune dette en cours',
+      title: 'Tout est équilibré !',
+      description: 'Félicitations, vous n\'avez aucune dette en cours',
       showConfetti: true,
     );
   }
@@ -109,8 +109,8 @@ class ErrorEmptyState extends StatelessWidget {
       icon: Icons.error_outline,
       iconColor: AppColors.error,
       title: 'Oups!',
-      description: message ?? 'Une erreur est survenue. Veuillez reessayer.',
-      actionLabel: 'Reessayer',
+      description: message ?? 'Une erreur est survenue. Veuillez réessayer.',
+      actionLabel: 'Réessayer',
       onAction: onRetry,
     );
   }
@@ -128,8 +128,8 @@ class NoConnectionEmptyState extends StatelessWidget {
       icon: Icons.wifi_off_outlined,
       iconColor: AppColors.warning,
       title: 'Pas de connexion',
-      description: 'Verifiez votre connexion internet et reessayez',
-      actionLabel: 'Reessayer',
+      description: 'Vérifiez votre connexion internet et réessayez',
+      actionLabel: 'Réessayer',
       onAction: onRetry,
     );
   }

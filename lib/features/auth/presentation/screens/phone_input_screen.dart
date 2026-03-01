@@ -80,6 +80,11 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
     final authState = ref.watch(authNotifierProvider);
 
     ref.listen<AuthState>(authNotifierProvider, (previous, next) {
+      // Android auto-verification: user signed in directly, skip OTP screen
+      if (next.needsProfileSetup) {
+        context.go(RouteConstants.profileSetup);
+        return;
+      }
       if (next.codeSent && next.phoneNumber != null) {
         context.push(
           RouteConstants.otpVerification,
@@ -196,7 +201,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
                     const SizedBox(height: 8),
                     Center(
                       child: Text(
-                        'Partagez vos depenses simplement',
+                        'Partagez vos dépenses simplement',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                               color: AppColors.gray600,
                             ),
@@ -213,7 +218,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Entrez votre numero',
+                      'Entrez votre numéro',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -226,7 +231,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         child: IntlPhoneField(
                           decoration: InputDecoration(
-                            hintText: 'Numero de telephone',
+                            hintText: 'Numéro de téléphone',
                             filled: true,
                             fillColor: Colors.transparent,
                             border: OutlineInputBorder(

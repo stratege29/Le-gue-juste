@@ -20,7 +20,7 @@ class SettlementEntity extends Equatable {
     required this.fromUserId,
     required this.toUserId,
     required this.amount,
-    this.currency = 'EUR',
+    this.currency = 'XOF',
     required this.createdAt,
     this.confirmedAt,
     required this.status,

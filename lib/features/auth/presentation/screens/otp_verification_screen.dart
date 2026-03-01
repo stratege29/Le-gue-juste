@@ -123,12 +123,14 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
       }
       if (next.errorMessage != null) {
         _triggerShake();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(next.errorMessage!),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(next.errorMessage!),
+              backgroundColor: AppColors.error,
+            ),
+          );
         // Clear OTP fields on error
         for (var controller in _controllers) {
           controller.clear();
@@ -167,14 +169,14 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
               ),
               const SizedBox(height: 24),
               Text(
-                'Verification',
+                'Vérification',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Entrez le code envoye au',
+                'Entrez le code envoyé au',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.gray600,
                     ),
@@ -272,7 +274,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
                     ),
                     child: authState.isLoading
                         ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                        : const Text('Verifier', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                        : const Text('Vérifier', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
                   ),
                 ),
               ),

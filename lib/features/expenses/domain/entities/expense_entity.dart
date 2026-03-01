@@ -24,7 +24,7 @@ class ExpenseEntity extends Equatable {
     required this.groupId,
     required this.description,
     required this.amount,
-    this.currency = 'EUR',
+    this.currency = 'XOF',
     required this.paidBy,
     required this.createdBy,
     required this.createdAt,

@@ -146,7 +146,7 @@ class AllSettledStateWidget extends StatelessWidget {
     return EmptyStateWidget(
       icon: Icons.check_circle_outline,
       iconColor: AppColors.success,
-      title: 'Tout est equilibre!',
+      title: 'Tout est équilibré !',
       description: subtitle ?? 'Aucune dette en cours',
     );
   }

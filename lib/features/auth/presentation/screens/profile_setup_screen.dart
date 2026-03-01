@@ -31,14 +31,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     if (_formKey.currentState!.validate()) {
       await ref
           .read(authNotifierProvider.notifier)
-          .createProfile(_nameController.text.trim());
-
-      // Save selected emoji avatar after profile is created
-      if (_selectedEmoji != null) {
-        await ref
-            .read(authNotifierProvider.notifier)
-            .updateProfile(avatarUrl: 'emoji:$_selectedEmoji');
-      }
+          .createProfile(
+            _nameController.text.trim(),
+            avatarEmoji: _selectedEmoji,
+          );
     }
   }
 
@@ -84,7 +80,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Telephone', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray500)),
+                    Text('Téléphone', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray500)),
                     Text('Code', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray500)),
                     Text('Profil', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
                   ],
@@ -126,9 +122,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                     ),
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white,
+                        color: Theme.of(context).scaffoldBackgroundColor,
                       ),
                       child: CircleAvatar(
                         radius: 60,
@@ -176,7 +172,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                       return 'Veuillez entrer votre nom';
                     }
                     if (value.trim().length < 2) {
-                      return 'Le nom doit contenir au moins 2 caracteres';
+                      return 'Le nom doit contenir au moins 2 caractères';
                     }
                     return null;
                   },

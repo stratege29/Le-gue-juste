@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppConstants {
   AppConstants._();
 
@@ -44,4 +46,40 @@ class AppConstants {
 
   // Balance threshold (for considering as settled)
   static const double balanceThreshold = 0.01;
+
+  // Group name examples (rotating hints)
+  static const List<String> groupNameExamples = [
+    'Gazoil à Marcory',
+    'Déjeuner chez Alice',
+    'Vacances à Dakar',
+    'Loyer coloc Cocody',
+    'Anniversaire de Fatou',
+    'Sorties du weekend',
+    'Courses du marché',
+    'Road trip Bassam',
+  ];
+
+  // Group icons (Material icons, stored as string keys)
+  static const Map<String, IconData> groupIcons = {
+    'restaurant': Icons.restaurant_outlined,
+    'flight': Icons.flight_outlined,
+    'home': Icons.home_outlined,
+    'shopping_cart': Icons.shopping_cart_outlined,
+    'local_gas_station': Icons.local_gas_station_outlined,
+    'celebration': Icons.celebration_outlined,
+    'sports_bar': Icons.sports_bar_outlined,
+    'directions_car': Icons.directions_car_outlined,
+    'school': Icons.school_outlined,
+    'favorite': Icons.favorite_outlined,
+    'beach_access': Icons.beach_access_outlined,
+    'local_grocery_store': Icons.local_grocery_store_outlined,
+    'movie': Icons.movie_outlined,
+    'music_note': Icons.music_note_outlined,
+    'fitness_center': Icons.fitness_center_outlined,
+    'work': Icons.work_outlined,
+    'child_care': Icons.child_care_outlined,
+    'pets': Icons.pets_outlined,
+    'medical_services': Icons.medical_services_outlined,
+    'more_horiz': Icons.more_horiz,
+  };
 }

@@ -4,22 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/firebase_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-/// Friend entity
-class FriendEntity {
-  final String id;
-  final String displayName;
-  final String? avatarUrl;
-  final String qrCode;
-  final DateTime addedAt;
+export '../../domain/entities/friend_entity.dart';
 
-  FriendEntity({
-    required this.id,
-    required this.displayName,
-    this.avatarUrl,
-    required this.qrCode,
-    required this.addedAt,
-  });
-}
+import '../../domain/entities/friend_entity.dart';
 
 /// Stream of user's friends
 final userFriendsProvider = StreamProvider<List<FriendEntity>>((ref) {
@@ -39,23 +26,44 @@ final userFriendsProvider = StreamProvider<List<FriendEntity>>((ref) {
       .orderBy('addedAt', descending: true)
       .snapshots()
       .asyncMap((snapshot) async {
-    final friends = <FriendEntity>[];
+    if (snapshot.docs.isEmpty) return <FriendEntity>[];
 
+    // Build a map of friendId -> addedAt from the friends subcollection
+    final addedAtMap = <String, DateTime>{};
     for (final doc in snapshot.docs) {
-      final friendId = doc.id;
-      final friendDoc = await firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(friendId)
-          .get();
+      addedAtMap[doc.id] = (doc.data()['addedAt'] as Timestamp).toDate();
+    }
 
-      if (friendDoc.exists) {
-        final data = friendDoc.data()!;
+    final friendIds = addedAtMap.keys.toList();
+
+    // Batch fetch user docs using whereIn (max 10 per query)
+    final chunks = _chunk(friendIds, 10);
+    final userDocs = await Future.wait(
+      chunks.map((chunk) => firestore
+          .collection(FirebaseConstants.usersCollection)
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get()),
+    );
+
+    // Build a map of userId -> user data
+    final userDataMap = <String, Map<String, dynamic>>{};
+    for (final querySnapshot in userDocs) {
+      for (final doc in querySnapshot.docs) {
+        userDataMap[doc.id] = doc.data();
+      }
+    }
+
+    // Assemble friends list preserving original order
+    final friends = <FriendEntity>[];
+    for (final friendId in friendIds) {
+      final data = userDataMap[friendId];
+      if (data != null) {
         friends.add(FriendEntity(
           id: friendId,
           displayName: data['displayName'] as String? ?? 'Utilisateur',
           avatarUrl: data['avatarUrl'] as String?,
           qrCode: data['qrCode'] as String? ?? '',
-          addedAt: (doc.data()['addedAt'] as Timestamp).toDate(),
+          addedAt: addedAtMap[friendId]!,
         ));
       }
     }
@@ -85,7 +93,7 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       final currentUser = _ref.read(authStateProvider).valueOrNull;
       if (currentUser == null) {
-        state = AsyncValue.error('Non connecte', StackTrace.current);
+        state = AsyncValue.error('Non connecté', StackTrace.current);
         return false;
       }
 
@@ -97,14 +105,14 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
           .get();
 
       if (userQuery.docs.isEmpty) {
-        state = AsyncValue.error('Utilisateur non trouve', StackTrace.current);
+        state = AsyncValue.error('Utilisateur non trouvé', StackTrace.current);
         return false;
       }
 
       final friendId = userQuery.docs.first.id;
 
       if (friendId == currentUser.uid) {
-        state = AsyncValue.error('Vous ne pouvez pas vous ajouter vous-meme', StackTrace.current);
+        state = AsyncValue.error('Vous ne pouvez pas vous ajouter vous-même', StackTrace.current);
         return false;
       }
 
@@ -117,27 +125,34 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
           .get();
 
       if (existingFriend.exists) {
-        state = AsyncValue.error('Deja dans vos amis', StackTrace.current);
+        state = AsyncValue.error('Déjà dans vos amis', StackTrace.current);
         return false;
       }
 
       final now = DateTime.now();
+      final batch = _firestore.batch();
 
       // Add friend to current user
-      await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(currentUser.uid)
-          .collection('friends')
-          .doc(friendId)
-          .set({'addedAt': Timestamp.fromDate(now)});
+      batch.set(
+        _firestore
+            .collection(FirebaseConstants.usersCollection)
+            .doc(currentUser.uid)
+            .collection('friends')
+            .doc(friendId),
+        {'addedAt': Timestamp.fromDate(now)},
+      );
 
       // Add current user to friend's list (mutual)
-      await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(friendId)
-          .collection('friends')
-          .doc(currentUser.uid)
-          .set({'addedAt': Timestamp.fromDate(now)});
+      batch.set(
+        _firestore
+            .collection(FirebaseConstants.usersCollection)
+            .doc(friendId)
+            .collection('friends')
+            .doc(currentUser.uid),
+        {'addedAt': Timestamp.fromDate(now)},
+      );
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
       return true;
@@ -153,29 +168,43 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       final currentUser = _ref.read(authStateProvider).valueOrNull;
       if (currentUser == null) {
-        state = AsyncValue.error('Non connecte', StackTrace.current);
+        state = AsyncValue.error('Non connecté', StackTrace.current);
         return;
       }
 
+      final batch = _firestore.batch();
+
       // Remove from current user's friends
-      await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(currentUser.uid)
-          .collection('friends')
-          .doc(friendId)
-          .delete();
+      batch.delete(
+        _firestore
+            .collection(FirebaseConstants.usersCollection)
+            .doc(currentUser.uid)
+            .collection('friends')
+            .doc(friendId),
+      );
 
       // Remove current user from friend's list
-      await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(friendId)
-          .collection('friends')
-          .doc(currentUser.uid)
-          .delete();
+      batch.delete(
+        _firestore
+            .collection(FirebaseConstants.usersCollection)
+            .doc(friendId)
+            .collection('friends')
+            .doc(currentUser.uid),
+      );
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
+}
+
+/// Splits a list into chunks of the given size.
+List<List<T>> _chunk<T>(List<T> list, int size) {
+  return List.generate(
+    (list.length / size).ceil(),
+    (i) => list.sublist(i * size, (i + 1) * size > list.length ? list.length : (i + 1) * size),
+  );
 }

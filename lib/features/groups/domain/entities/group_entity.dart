@@ -21,7 +21,7 @@ class GroupEntity extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     required this.memberIds,
-    this.currency = 'EUR',
+    this.currency = 'XOF',
     this.simplifyDebts = true,
   });
 

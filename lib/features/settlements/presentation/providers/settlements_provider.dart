@@ -16,7 +16,7 @@ final groupSettlementsProvider =
   return firestore
       .collection(FirebaseConstants.groupsCollection)
       .doc(groupId)
-      .collection('settlements')
+      .collection(FirebaseConstants.settlementsSubcollection)
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((snapshot) => snapshot.docs.map((doc) {
@@ -28,7 +28,7 @@ final groupSettlementsProvider =
               fromUserId: data['fromUserId'] as String,
               toUserId: data['toUserId'] as String,
               amount: (data['amount'] as num).toDouble(),
-              currency: data['currency'] as String? ?? 'EUR',
+              currency: data['currency'] as String? ?? 'XOF',
               createdAt: (data['createdAt'] as Timestamp).toDate(),
               confirmedAt: data['confirmedAt'] != null
                   ? (data['confirmedAt'] as Timestamp).toDate()
@@ -62,7 +62,7 @@ class SettlementsNotifier extends StateNotifier<AsyncValue<void>> {
     required String fromUserId,
     required String toUserId,
     required double amount,
-    String currency = 'EUR',
+    String currency = 'XOF',
     String? note,
   }) async {
     state = const AsyncValue.loading();
@@ -70,19 +70,22 @@ class SettlementsNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       final currentUser = _ref.read(authStateProvider).valueOrNull;
       if (currentUser == null) {
-        state = AsyncValue.error('Non connecte', StackTrace.current);
+        state = AsyncValue.error('Non connecté', StackTrace.current);
         return false;
       }
 
       final now = DateTime.now();
       final settlementId = const Uuid().v4();
 
-      await _firestore
+      // Batch write: settlement doc + group updatedAt atomically
+      final batch = _firestore.batch();
+
+      final settlementRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
           .doc(groupId)
-          .collection('settlements')
-          .doc(settlementId)
-          .set({
+          .collection(FirebaseConstants.settlementsSubcollection)
+          .doc(settlementId);
+      batch.set(settlementRef, {
         'fromUserId': fromUserId,
         'toUserId': toUserId,
         'amount': amount,
@@ -94,13 +97,14 @@ class SettlementsNotifier extends StateNotifier<AsyncValue<void>> {
         'status': 'confirmed',
       });
 
-      // Update group's updatedAt
-      await _firestore
+      final groupRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .update({
-        FirebaseConstants.updatedAt: Timestamp.now(),
+          .doc(groupId);
+      batch.update(groupRef, {
+        FirebaseConstants.updatedAt: Timestamp.fromDate(now),
       });
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
       return true;
@@ -120,7 +124,7 @@ class SettlementsNotifier extends StateNotifier<AsyncValue<void>> {
       await _firestore
           .collection(FirebaseConstants.groupsCollection)
           .doc(groupId)
-          .collection('settlements')
+          .collection(FirebaseConstants.settlementsSubcollection)
           .doc(settlementId)
           .delete();
 

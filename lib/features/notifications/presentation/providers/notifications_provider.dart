@@ -4,30 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/firebase_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-/// Notification entity
-class NotificationEntity {
-  final String id;
-  final String type; // 'expense_added', 'group_invite', 'payment_received', 'payment_reminder'
-  final String title;
-  final String body;
-  final String? groupId;
-  final String? expenseId;
-  final String? fromUserId;
-  final DateTime createdAt;
-  final bool isRead;
+export '../../domain/entities/notification_entity.dart';
 
-  NotificationEntity({
-    required this.id,
-    required this.type,
-    required this.title,
-    required this.body,
-    this.groupId,
-    this.expenseId,
-    this.fromUserId,
-    required this.createdAt,
-    required this.isRead,
-  });
-}
+import '../../domain/entities/notification_entity.dart';
 
 /// Stream of user's notifications
 final userNotificationsProvider = StreamProvider<List<NotificationEntity>>((ref) {

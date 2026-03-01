@@ -114,7 +114,7 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<void>> {
     required List<ExpenseSplit> splits,
     DateTime? date,
     String? category,
-    String currency = 'EUR',
+    String currency = 'XOF',
   }) async {
     state = const AsyncValue.loading();
 
@@ -348,10 +348,10 @@ class AddExpenseState {
       return 'Montant invalide';
     }
     if (payerId == null) {
-      return 'Selectionnez qui a paye';
+      return 'Sélectionnez qui a payé';
     }
     if (participantIds.isEmpty) {
-      return 'Selectionnez au moins un participant';
+      return 'Sélectionnez au moins un participant';
     }
 
     final splits = calculateSplits();

@@ -53,19 +53,29 @@ final groupMemberNamesProvider = FutureProvider.family<Map<String, String>, Stri
   if (!group.exists) return {};
 
   final memberIds = List<String>.from(group.data()?['memberIds'] ?? []);
+  if (memberIds.isEmpty) return {};
+
+  // Batch fetch user docs using whereIn (max 10 per query)
+  final chunks = _chunk(memberIds, 10);
+  final userDocs = await Future.wait(
+    chunks.map((chunk) => firestore
+        .collection(FirebaseConstants.usersCollection)
+        .where(FieldPath.documentId, whereIn: chunk)
+        .get()),
+  );
+
+  // Build member names map from results
   final memberNames = <String, String>{};
+  final userDataMap = <String, Map<String, dynamic>>{};
+  for (final querySnapshot in userDocs) {
+    for (final doc in querySnapshot.docs) {
+      userDataMap[doc.id] = doc.data();
+    }
+  }
 
   for (final memberId in memberIds) {
-    final userDoc = await firestore
-        .collection(FirebaseConstants.usersCollection)
-        .doc(memberId)
-        .get();
-
-    if (userDoc.exists) {
-      memberNames[memberId] = userDoc.data()?['displayName'] as String? ?? 'Utilisateur';
-    } else {
-      memberNames[memberId] = 'Utilisateur';
-    }
+    final data = userDataMap[memberId];
+    memberNames[memberId] = data?['displayName'] as String? ?? 'Utilisateur';
   }
 
   return memberNames;
@@ -89,7 +99,9 @@ class GroupsNotifier extends StateNotifier<AsyncValue<void>> {
   Future<String?> createGroup({
     required String name,
     String? description,
-    String currency = 'EUR',
+    String currency = 'XOF',
+    String? imageUrl,
+    List<String> extraMemberIds = const [],
   }) async {
     state = const AsyncValue.loading();
 
@@ -107,31 +119,46 @@ class GroupsNotifier extends StateNotifier<AsyncValue<void>> {
         id: groupId,
         name: name,
         description: description,
+        imageUrl: imageUrl,
         createdBy: user.uid,
         createdAt: now,
         updatedAt: now,
-        memberIds: [user.uid],
+        memberIds: [user.uid, ...extraMemberIds],
         currency: currency,
         simplifyDebts: true,
       );
 
-      // Create group document
-      await _firestore
-          .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .set(group.toFirestore());
+      // Batch write: group doc + all member subcollection entries atomically
+      final batch = _firestore.batch();
 
-      // Create member subcollection entry
-      await _firestore
+      final groupRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
+          .doc(groupId);
+      batch.set(groupRef, group.toFirestore());
+
+      // Member subcollection entry for creator
+      final creatorMemberRef = groupRef
           .collection(FirebaseConstants.membersSubcollection)
-          .doc(user.uid)
-          .set({
+          .doc(user.uid);
+      batch.set(creatorMemberRef, {
         'joinedAt': Timestamp.fromDate(now),
         'role': 'admin',
         'balance': 0,
       });
+
+      // Member subcollection entries for invited friends
+      for (final memberId in extraMemberIds) {
+        final memberRef = groupRef
+            .collection(FirebaseConstants.membersSubcollection)
+            .doc(memberId);
+        batch.set(memberRef, {
+          'joinedAt': Timestamp.fromDate(now),
+          'role': 'member',
+          'balance': 0,
+        });
+      }
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
       return groupId;
@@ -239,37 +266,49 @@ class GroupsNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
 
     try {
-      // Delete all expenses
-      final expenses = await _firestore
+      final groupRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .collection(FirebaseConstants.expensesSubcollection)
-          .get();
+          .doc(groupId);
+
+      // Fetch all subcollections in parallel before batching deletes
+      final results = await Future.wait([
+        groupRef.collection(FirebaseConstants.expensesSubcollection).get(),
+        groupRef.collection(FirebaseConstants.membersSubcollection).get(),
+        groupRef.collection(FirebaseConstants.settlementsSubcollection).get(),
+      ]);
+
+      final expenses = results[0];
+      final members = results[1];
+      final settlements = results[2];
+
+      // Batch delete all subcollection docs + group doc atomically
+      final batch = _firestore.batch();
 
       for (final doc in expenses.docs) {
-        await doc.reference.delete();
+        batch.delete(doc.reference);
       }
-
-      // Delete all members
-      final members = await _firestore
-          .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .collection(FirebaseConstants.membersSubcollection)
-          .get();
-
       for (final doc in members.docs) {
-        await doc.reference.delete();
+        batch.delete(doc.reference);
+      }
+      for (final doc in settlements.docs) {
+        batch.delete(doc.reference);
       }
 
-      // Delete group
-      await _firestore
-          .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .delete();
+      batch.delete(groupRef);
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
+}
+
+/// Splits a list into chunks of the given size.
+List<List<T>> _chunk<T>(List<T> list, int size) {
+  return List.generate(
+    (list.length / size).ceil(),
+    (i) => list.sublist(i * size, (i + 1) * size > list.length ? list.length : (i + 1) * size),
+  );
 }

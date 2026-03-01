@@ -5,6 +5,7 @@ import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class MyQrCodeScreen extends ConsumerWidget {
@@ -26,7 +27,7 @@ class MyQrCodeScreen extends ConsumerWidget {
                 Clipboard.setData(ClipboardData(text: user.qrCode));
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Code copie dans le presse-papier'),
+                    content: Text('Code copié dans le presse-papier'),
                     backgroundColor: AppColors.success,
                   ),
                 );
@@ -115,8 +116,13 @@ class MyQrCodeScreen extends ConsumerWidget {
           ),
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text('Erreur: $error'),
+        error: (error, _) => EmptyStateWidget(
+          icon: Icons.error_outline,
+          title: 'Une erreur est survenue',
+          description: 'Impossible de charger votre profil',
+          actionLabel: 'Réessayer',
+          onAction: () => ref.invalidate(currentUserProvider),
+          iconColor: AppColors.error,
         ),
       ),
     );

@@ -1,7 +1,7 @@
 name: leguejuste
 description: "Application de partage de depenses entre amis"
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.3.0+4
 
 environment:
   sdk: ^3.10.1
@@ -34,9 +34,6 @@ dependencies:
   mobile_scanner: ^6.0.10
   pretty_qr_code: ^3.4.0
 
-  # === NETWORKING & CONNECTIVITY ===
-  connectivity_plus: ^6.0.5
-
   # === UI/UX ===
   google_fonts: ^6.2.1
   flutter_screenutil: ^5.9.3
@@ -55,22 +52,16 @@ dependencies:
   # === PERMISSIONS ===
   permission_handler: ^11.3.1
 
-  # === JSON ===
-  json_annotation: ^4.9.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
 
-  # === CODE GENERATION ===
-  build_runner: ^2.4.13
-  json_serializable: ^6.8.0
-
   # === TESTING ===
   mocktail: ^1.0.4
   flutter_launcher_icons: ^0.14.4
+  fake_cloud_firestore: ^3.1.0
 
 flutter_launcher_icons:
   android: true

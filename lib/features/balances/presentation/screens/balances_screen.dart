@@ -36,7 +36,7 @@ class BalancesScreen extends ConsumerWidget {
 
           final userId = currentAuthUser.valueOrNull?.uid;
           if (userId == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonScreen(itemCount: 3);
           }
 
           // Check if any expenses are still loading
@@ -50,17 +50,18 @@ class BalancesScreen extends ConsumerWidget {
           }
 
           if (isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const SkeletonScreen(itemCount: 3);
           }
 
-          // Calculate total balance across all groups
-          double totalBalance = 0;
+          // Calculate total balance per currency across all groups
+          final totalsByCurrency = <String, double>{};
           final groupBalances = <_GroupBalanceInfo>[];
 
           for (final group in groups) {
             final balances = ref.watch(groupBalancesProvider(group.id));
             final userBalance = balances[userId] ?? 0.0;
-            totalBalance += userBalance;
+            totalsByCurrency[group.currency] =
+                (totalsByCurrency[group.currency] ?? 0) + userBalance;
 
             if (userBalance.abs() > 0.01) {
               final currencySymbol = AppConstants.currencySymbols[group.currency] ?? group.currency;
@@ -68,20 +69,20 @@ class BalancesScreen extends ConsumerWidget {
                 groupName: group.name,
                 groupId: group.id,
                 balance: userBalance,
+                currency: group.currency,
                 currencySymbol: currencySymbol,
               ));
             }
           }
 
-          // Determine the most common currency symbol from groups
-          final currencyCounts = <String, int>{};
-          for (final group in groups) {
-            final symbol = AppConstants.currencySymbols[group.currency] ?? group.currency;
-            currencyCounts[symbol] = (currencyCounts[symbol] ?? 0) + 1;
-          }
-          final mostCommonSymbol = currencyCounts.entries.isEmpty
-              ? '\u20AC'
-              : (currencyCounts.entries.reduce((a, b) => a.value >= b.value ? a : b)).key;
+          // Find the primary currency (most used) for the summary card
+          final primaryCurrency = totalsByCurrency.keys.isEmpty
+              ? AppConstants.defaultCurrency
+              : totalsByCurrency.keys.reduce((a, b) =>
+                  (totalsByCurrency[a]?.abs() ?? 0) >= (totalsByCurrency[b]?.abs() ?? 0) ? a : b);
+          final primarySymbol = AppConstants.currencySymbols[primaryCurrency] ?? primaryCurrency;
+          final primaryTotal = totalsByCurrency[primaryCurrency] ?? 0;
+          final hasMultipleCurrencies = totalsByCurrency.length > 1;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -90,16 +91,32 @@ class BalancesScreen extends ConsumerWidget {
             },
             child: Column(
               children: [
-                // Total balance card using reusable component
-                SummaryCard.balance(
-                  amount: totalBalance,
-                  currencySymbol: mostCommonSymbol,
-                  subtitle: totalBalance > 0.01
-                      ? 'Recuperez votre argent!'
-                      : totalBalance < -0.01
-                          ? 'Pensez a rembourser'
-                          : 'Tout est equilibre',
-                ),
+                // Total balance card per currency
+                if (hasMultipleCurrencies)
+                  ...totalsByCurrency.entries
+                      .where((e) => e.value.abs() > 0.01)
+                      .map((e) {
+                    final sym = AppConstants.currencySymbols[e.key] ?? e.key;
+                    return SummaryCard.balance(
+                      amount: e.value,
+                      currencySymbol: sym,
+                      subtitle: e.value > 0.01
+                          ? 'Récupérez votre argent !'
+                          : e.value < -0.01
+                              ? 'Pensez à rembourser'
+                              : 'Tout est équilibré',
+                    );
+                  })
+                else
+                  SummaryCard.balance(
+                    amount: primaryTotal,
+                    currencySymbol: primarySymbol,
+                    subtitle: primaryTotal > 0.01
+                        ? 'Récupérez votre argent !'
+                        : primaryTotal < -0.01
+                            ? 'Pensez à rembourser'
+                            : 'Tout est équilibré',
+                  ),
                 // Balances list by group
                 Expanded(
                   child: groupBalances.isEmpty
@@ -116,7 +133,7 @@ class BalancesScreen extends ConsumerWidget {
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const SkeletonScreen(itemCount: 3),
         error: (_, __) => const EmptyStateWidget(
           icon: Icons.error_outline,
           title: 'Erreur',
@@ -152,7 +169,7 @@ class BalancesScreen extends ConsumerWidget {
           (d) => d.fromUserId == currentUserId || d.toUserId == currentUserId
         ).toList();
 
-        return _AnimatedBalanceCard(
+        return StaggeredAnimatedCard(
           index: index,
           child: Semantics(
             label: '${info.groupName}: ${isPositive ? "on vous doit" : "vous devez"} $formattedAmount',
@@ -194,7 +211,7 @@ class BalancesScreen extends ConsumerWidget {
                       ? [
                           const Padding(
                             padding: EdgeInsets.all(16),
-                            child: Text('Aucun detail disponible'),
+                            child: Text('Aucun détail disponible'),
                           ),
                         ]
                       : userDebts.map((debt) {
@@ -215,7 +232,7 @@ class BalancesScreen extends ConsumerWidget {
                             ),
                             title: Text(
                               isUserDebtor
-                                  ? 'Vous devez $amount a $otherUserName'
+                                  ? 'Vous devez $amount à $otherUserName'
                                   : '$otherUserName vous doit $amount',
                               style: const TextStyle(fontSize: 14),
                             ),
@@ -229,6 +246,7 @@ class BalancesScreen extends ConsumerWidget {
                                   fromUserId: debt.fromUserId,
                                   toUserId: debt.toUserId,
                                   amount: debt.amount,
+                                  currency: info.currency,
                                   currencySymbol: info.currencySymbol,
                                   otherUserName: otherUserName,
                                   isUserDebtor: isUserDebtor,
@@ -239,7 +257,7 @@ class BalancesScreen extends ConsumerWidget {
                                 foregroundColor: AppColors.success,
                                 padding: const EdgeInsets.symmetric(horizontal: 12),
                               ),
-                              child: const Text('Regler'),
+                              child: const Text('Régler'),
                             ),
                           );
                         }).toList(),
@@ -259,6 +277,7 @@ class BalancesScreen extends ConsumerWidget {
     required String fromUserId,
     required String toUserId,
     required double amount,
+    required String currency,
     required String currencySymbol,
     required String otherUserName,
     required bool isUserDebtor,
@@ -271,11 +290,11 @@ class BalancesScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirmer le reglement'),
+        title: const Text('Confirmer le règlement'),
         content: Text(
           isUserDebtor
-              ? 'Confirmer que vous avez paye $formattedAmount a $otherUserName ?'
-              : 'Confirmer que $otherUserName vous a paye $formattedAmount ?',
+              ? 'Confirmer que vous avez payé $formattedAmount à $otherUserName ?'
+              : 'Confirmer que $otherUserName vous a payé $formattedAmount ?',
         ),
         actions: [
           TextButton(
@@ -292,6 +311,7 @@ class BalancesScreen extends ConsumerWidget {
                 fromUserId: fromUserId,
                 toUserId: toUserId,
                 amount: amount,
+                currency: currency,
               );
             },
             icon: const Icon(Icons.check, size: 18),
@@ -309,6 +329,7 @@ class BalancesScreen extends ConsumerWidget {
     required String fromUserId,
     required String toUserId,
     required double amount,
+    required String currency,
   }) async {
     try {
       await ref.read(settlementsNotifierProvider.notifier).createSettlement(
@@ -316,10 +337,11 @@ class BalancesScreen extends ConsumerWidget {
         fromUserId: fromUserId,
         toUserId: toUserId,
         amount: amount,
+        currency: currency,
       );
       if (context.mounted) {
         HapticFeedback.mediumImpact();
-        SnackbarManager.showSuccess(context, 'Dette reglee!');
+        SnackbarManager.showSuccess(context, 'Dette réglée !');
       }
     } catch (e) {
       if (context.mounted) {
@@ -329,69 +351,18 @@ class BalancesScreen extends ConsumerWidget {
   }
 }
 
-class _AnimatedBalanceCard extends StatefulWidget {
-  final Widget child;
-  final int index;
-
-  const _AnimatedBalanceCard({required this.child, required this.index});
-
-  @override
-  State<_AnimatedBalanceCard> createState() => _AnimatedBalanceCardState();
-}
-
-class _AnimatedBalanceCardState extends State<_AnimatedBalanceCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    Future.delayed(Duration(milliseconds: 80 * widget.index), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: widget.child,
-      ),
-    );
-  }
-}
-
 class _GroupBalanceInfo {
   final String groupName;
   final String groupId;
   final double balance;
+  final String currency;
   final String currencySymbol;
 
   _GroupBalanceInfo({
     required this.groupName,
     required this.groupId,
     required this.balance,
+    required this.currency,
     required this.currencySymbol,
   });
 }

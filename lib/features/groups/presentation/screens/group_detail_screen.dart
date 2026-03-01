@@ -11,7 +11,6 @@ import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/groups_provider.dart';
-import '../../../expenses/presentation/screens/add_expense_screen.dart';
 import '../../../expenses/presentation/providers/expenses_provider.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../balances/domain/entities/balance_entity.dart';
@@ -38,7 +37,7 @@ class GroupDetailScreen extends ConsumerWidget {
         if (group == null) {
           return Scaffold(
             appBar: AppBar(),
-            body: const Center(child: Text('Groupe non trouve')),
+            body: const Center(child: Text('Groupe non trouvé')),
           );
         }
 
@@ -66,11 +65,11 @@ class GroupDetailScreen extends ConsumerWidget {
                 ),
               ),
               Semantics(
-                label: 'Parametres du groupe',
+                label: 'Paramètres du groupe',
                 button: true,
                 child: IconButton(
                   icon: const Icon(Icons.settings),
-                  tooltip: 'Parametres du groupe',
+                  tooltip: 'Paramètres du groupe',
                   onPressed: () {
                     HapticFeedback.lightImpact();
                     _showGroupSettings(context, ref, group.name, group.id);
@@ -100,9 +99,18 @@ class GroupDetailScreen extends ConsumerWidget {
                     }
                     return _buildExpensesList(context, expenses, currencySymbol, memberNames, groupId);
                   },
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(child: Text('Erreur: $error')),
+                  loading: () => const SkeletonScreen(
+                    itemCount: 4,
+                    showSummaryCard: false,
+                  ),
+                  error: (error, _) => EmptyStateWidget(
+                    icon: Icons.error_outline,
+                    title: 'Une erreur est survenue',
+                    description: 'Impossible de charger les dépenses',
+                    actionLabel: 'Réessayer',
+                    onAction: () => ref.invalidate(groupExpensesProvider(groupId)),
+                    iconColor: AppColors.error,
+                  ),
                 ),
               ),
             ],
@@ -120,7 +128,7 @@ class GroupDetailScreen extends ConsumerWidget {
                   },
                   icon: const Icon(Icons.add, size: 24),
                   label: const Text(
-                    'Nouvelle depense',
+                    'Nouvelle dépense',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -131,11 +139,18 @@ class GroupDetailScreen extends ConsumerWidget {
       },
       loading: () => Scaffold(
         appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const SkeletonScreen(itemCount: 4),
       ),
       error: (error, _) => Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text('Erreur: $error')),
+        body: EmptyStateWidget(
+          icon: Icons.error_outline,
+          title: 'Une erreur est survenue',
+          description: 'Impossible de charger les données du groupe',
+          actionLabel: 'Réessayer',
+          onAction: () => ref.invalidate(groupProvider(groupId)),
+          iconColor: AppColors.error,
+        ),
       ),
     );
   }
@@ -150,17 +165,7 @@ class GroupDetailScreen extends ConsumerWidget {
     bool isLoading,
   ) {
     if (isLoading) {
-      return Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.gray200,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const SkeletonSummaryCard();
     }
 
     final isOwed = userBalance > 0.01;
@@ -193,7 +198,7 @@ class GroupDetailScreen extends ConsumerWidget {
                 ? 'On vous doit'
                 : owes
                     ? 'Vous devez'
-                    : 'Solde equilibre',
+                    : 'Solde équilibré',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Colors.white.withValues(alpha: 0.8),
                 ),
@@ -230,7 +235,7 @@ class GroupDetailScreen extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(
                       isUserDebtor
-                          ? 'Vous devez $amount a $otherUserName'
+                          ? 'Vous devez $amount à $otherUserName'
                           : '$otherUserName vous doit $amount',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Colors.white.withValues(alpha: 0.9),
@@ -273,14 +278,14 @@ class GroupDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Aucune depense',
+            'Aucune dépense',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: AppColors.gray600,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Ajoutez une depense pour commencer',
+            'Ajoutez une dépense pour commencer',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.gray500,
                 ),
@@ -369,7 +374,7 @@ class GroupDetailScreen extends ConsumerWidget {
                 child: const Icon(Icons.qr_code, color: AppColors.primary),
               ),
               title: const Text('Scanner un QR code'),
-              subtitle: const Text('Ajoutez un ami present'),
+              subtitle: const Text('Ajoutez un ami présent'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 final currentGroupId = groupId;
@@ -394,7 +399,7 @@ class GroupDetailScreen extends ConsumerWidget {
               subtitle: const Text('Envoyez une invitation'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
-                final shareText = 'Rejoins mon groupe "$groupName" sur LeGuJuste pour partager nos depenses!\n\nTelecharge l\'app et scanne mon QR code pour rejoindre le groupe.';
+                final shareText = 'Rejoins mon groupe "$groupName" sur LeGuJuste pour partager nos dépenses !\n\nTélécharge l\'app et scanne mon QR code pour rejoindre le groupe.';
                 final shareSubject = 'Invitation au groupe $groupName';
                 Navigator.pop(ctx);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -417,7 +422,7 @@ class GroupDetailScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Parametres du groupe',
+              'Paramètres du groupe',
               style: Theme.of(ctx).textTheme.titleLarge,
             ),
             const SizedBox(height: 24),
@@ -502,7 +507,7 @@ class GroupDetailScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Quitter le groupe?'),
-        content: const Text('Vous ne pourrez plus voir les depenses de ce groupe.'),
+        content: const Text('Vous ne pourrez plus voir les dépenses de ce groupe.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -530,13 +535,7 @@ class GroupDetailScreen extends ConsumerWidget {
   }
 
   void _showAddExpenseSheet(BuildContext context, WidgetRef ref, String groupId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddExpenseScreen(groupId: groupId),
-        fullscreenDialog: true,
-      ),
-    );
+    context.push('/groups/$groupId/add-expense');
   }
 }
 
@@ -557,9 +556,9 @@ class _ExpenseCard extends ConsumerWidget {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer cette depense?'),
+        title: const Text('Supprimer cette dépense ?'),
         content: Text(
-          'La depense "${expense.description}" sera supprimee definitivement.',
+          'La dépense "${expense.description}" sera supprimée définitivement.',
         ),
         actions: [
           TextButton(
@@ -583,7 +582,7 @@ class _ExpenseCard extends ConsumerWidget {
       expenseId: expense.id,
     );
     if (context.mounted) {
-      SnackbarManager.showSuccess(context, 'Depense supprimee');
+      SnackbarManager.showSuccess(context, 'Dépense supprimée');
     }
   }
 
@@ -599,7 +598,7 @@ class _ExpenseCard extends ConsumerWidget {
     final isOwner = currentUserId != null && expense.createdBy == currentUserId;
 
     return Semantics(
-      label: '${expense.description}, $formattedAmount, paye par $paidByName',
+      label: '${expense.description}, $formattedAmount, payé par $paidByName',
       child: Dismissible(
         key: ValueKey(expense.id),
         direction: isOwner
@@ -626,7 +625,7 @@ class _ExpenseCard extends ConsumerWidget {
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
-              'Paye par $paidByName',
+              'Payé par $paidByName',
               style: TextStyle(color: AppColors.gray600, fontSize: 12),
             ),
             trailing: Row(

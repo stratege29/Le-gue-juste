@@ -61,7 +61,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Tout est equilibre!'), findsOneWidget);
+      expect(find.text('Tout est équilibré !'), findsOneWidget);
       expect(find.text('Custom subtitle'), findsOneWidget);
     });
 

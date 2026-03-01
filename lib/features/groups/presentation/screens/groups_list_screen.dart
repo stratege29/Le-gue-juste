@@ -40,8 +40,8 @@ class GroupsListScreen extends ConsumerWidget {
             return EmptyStateWidget(
               icon: Icons.group_outlined,
               title: 'Aucun groupe',
-              description: 'Creez un groupe pour commencer a partager vos depenses',
-              actionLabel: 'Creer un groupe',
+              description: 'Créez un groupe pour commencer à partager vos dépenses',
+              actionLabel: 'Créer un groupe',
               onAction: () => context.push('/groups/create'),
             );
           }
@@ -53,7 +53,7 @@ class GroupsListScreen extends ConsumerWidget {
           iconColor: AppColors.error,
           title: 'Erreur de chargement',
           description: 'Impossible de charger vos groupes',
-          actionLabel: 'Reessayer',
+          actionLabel: 'Réessayer',
           onAction: () => ref.invalidate(userGroupsProvider),
         ),
       ),
@@ -74,7 +74,7 @@ class GroupsListScreen extends ConsumerWidget {
             itemCount: groups.length,
             itemBuilder: (context, index) {
               final group = groups[index];
-              return _AnimatedGroupCard(
+              return StaggeredAnimatedCard(
                 index: index,
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -85,59 +85,6 @@ class GroupsListScreen extends ConsumerWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _AnimatedGroupCard extends StatefulWidget {
-  final Widget child;
-  final int index;
-
-  const _AnimatedGroupCard({required this.child, required this.index});
-
-  @override
-  State<_AnimatedGroupCard> createState() => _AnimatedGroupCardState();
-}
-
-class _AnimatedGroupCardState extends State<_AnimatedGroupCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    Future.delayed(Duration(milliseconds: 80 * widget.index), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: widget.child,
-      ),
     );
   }
 }
@@ -157,7 +104,7 @@ class _GroupCard extends ConsumerWidget {
     final isOwed = userBalance > 0.01;
     final owes = userBalance < -0.01;
     final balanceColor = isOwed ? AppColors.success : owes ? AppColors.error : AppColors.settled;
-    final balanceLabel = isOwed ? 'on vous doit' : owes ? 'vous devez' : 'equilibre';
+    final balanceLabel = isOwed ? 'on vous doit' : owes ? 'vous devez' : 'équilibré';
     final formattedBalance = NumberFormat.currency(symbol: currencySymbol, decimalDigits: 0).format(userBalance.abs());
 
     return Semantics(

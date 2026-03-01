@@ -119,7 +119,7 @@ class ProfileScreen extends ConsumerWidget {
                 context,
                 icon: Icons.qr_code,
                 title: 'Mon QR Code',
-                subtitle: 'Partagez votre code pour etre ajoute',
+                subtitle: 'Partagez votre code pour être ajouté',
                 onTap: () => context.push(RouteConstants.myQrCode),
               ),
               _buildMenuItem(
@@ -133,7 +133,7 @@ class ProfileScreen extends ConsumerWidget {
                 context,
                 icon: Icons.people_outline,
                 title: 'Mes amis',
-                subtitle: 'Gerez vos contacts',
+                subtitle: 'Gérez vos contacts',
                 onTap: () => context.push(RouteConstants.friends),
               ),
               _buildMenuItem(
@@ -150,9 +150,9 @@ class ProfileScreen extends ConsumerWidget {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Deconnexion'),
+                      title: const Text('Déconnexion'),
                       content: const Text(
-                          'Etes-vous sur de vouloir vous deconnecter?'),
+                          'Êtes-vous sûr de vouloir vous déconnecter ?'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
@@ -164,7 +164,7 @@ class ProfileScreen extends ConsumerWidget {
                             ref.read(authNotifierProvider.notifier).signOut();
                           },
                           child: const Text(
-                            'Deconnecter',
+                            'Déconnecter',
                             style: TextStyle(color: AppColors.error),
                           ),
                         ),
@@ -173,7 +173,7 @@ class ProfileScreen extends ConsumerWidget {
                   );
                 },
                 child: const Text(
-                  'Se deconnecter',
+                  'Se déconnecter',
                   style: TextStyle(color: AppColors.gray500, fontSize: 14),
                 ),
               ),
@@ -236,7 +236,7 @@ class ProfileScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Parametres',
+                  'Paramètres',
                   style: Theme.of(ctx).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 24),
@@ -255,14 +255,14 @@ class ProfileScreen extends ConsumerWidget {
                   },
                 ),
                 Semantics(
-                  label: 'Mode sombre ${isDark ? "active" : "desactive"}',
+                  label: 'Mode sombre ${isDark ? "activé" : "désactivé"}',
                   child: SwitchListTile(
                     secondary: IconBadge(
                       icon: isDark ? Icons.dark_mode : Icons.light_mode,
                       color: isDark ? AppColors.primaryLight : AppColors.warning,
                     ),
                     title: const Text('Mode sombre'),
-                    subtitle: Text(isDark ? 'Active' : 'Desactive'),
+                    subtitle: Text(isDark ? 'Activé' : 'Désactivé'),
                     value: isDark,
                     onChanged: (value) {
                       ref.read(themeModeProvider.notifier).setThemeMode(
@@ -276,7 +276,7 @@ class ProfileScreen extends ConsumerWidget {
                     icon: Icons.info_outline,
                     color: AppColors.gray600,
                   ),
-                  title: const Text('A propos'),
+                  title: const Text('À propos'),
                   subtitle: const Text('Version 1.0.0'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
@@ -297,8 +297,8 @@ class ProfileScreen extends ConsumerWidget {
                       icon: Icons.science_outlined,
                       color: AppColors.warning,
                     ),
-                    title: const Text('Creer donnees de test'),
-                    subtitle: const Text('Ajoute 2 amis fictifs + depenses'),
+                    title: const Text('Créer données de test'),
+                    subtitle: const Text('Ajoute 2 amis fictifs + dépenses'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () async {
                       HapticFeedback.lightImpact();
@@ -309,7 +309,7 @@ class ProfileScreen extends ConsumerWidget {
                         ref.read(firebaseAuthProvider),
                       );
 
-                      SnackbarManager.showInfo(context, 'Nettoyage et creation...');
+                      SnackbarManager.showInfo(context, 'Nettoyage et création...');
 
                       // Clean up old test data first
                       await seeder.cleanupTestData();
@@ -321,10 +321,10 @@ class ProfileScreen extends ConsumerWidget {
                         if (groupId != null) {
                           SnackbarManager.showSuccess(
                             context,
-                            'Groupe "Vacances Test" cree avec Alice et Bob!',
+                            'Groupe "Vacances Test" créé avec Alice et Bob !',
                           );
                         } else {
-                          SnackbarManager.showError(context, 'Erreur lors de la creation');
+                          SnackbarManager.showError(context, 'Erreur lors de la création');
                         }
                       }
                     },
@@ -473,7 +473,7 @@ class ProfileScreen extends ConsumerWidget {
 
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
-                          SnackbarManager.showSuccess(context, 'Profil mis a jour!');
+                          SnackbarManager.showSuccess(context, 'Profil mis à jour !');
                         }
                       } catch (e) {
                         if (ctx.mounted) {

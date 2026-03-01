@@ -3,18 +3,18 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Primary colors - Vibrant Indigo
-  static const Color primary = Color(0xFF4F46E5);
-  static const Color primaryLight = Color(0xFF818CF8);
-  static const Color primaryDark = Color(0xFF3730A3);
+  // Primary colors - Forest Green (from logo "Le Gue" text)
+  static const Color primary = Color(0xFF1A6B3A);
+  static const Color primaryLight = Color(0xFF4CAF50);
+  static const Color primaryDark = Color(0xFF0D4A22);
 
-  // Secondary colors - Fresh Teal
-  static const Color secondary = Color(0xFF14B8A6);
-  static const Color secondaryLight = Color(0xFF5EEAD4);
-  static const Color secondaryDark = Color(0xFF0F766E);
+  // Secondary colors - Warm Orange (from logo "Juste" text)
+  static const Color secondary = Color(0xFFE8762A);
+  static const Color secondaryLight = Color(0xFFFFB74D);
+  static const Color secondaryDark = Color(0xFFBF5F00);
 
-  // Accent colors - Warm Coral
-  static const Color accent = Color(0xFFF97316);
+  // Accent colors - Gold (from logo bridge & cauris)
+  static const Color accent = Color(0xFFC49A3C);
 
   // Status colors
   static const Color success = Color(0xFF22C55E);
@@ -54,13 +54,13 @@ class AppColors {
 
   // === Gradients ===
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+    colors: [Color(0xFF1A6B3A), Color(0xFF0D4A22)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient primaryGradientVertical = LinearGradient(
-    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+    colors: [Color(0xFF1A6B3A), Color(0xFF0D4A22)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
@@ -72,7 +72,7 @@ class AppColors {
   );
 
   static const LinearGradient warmGradient = LinearGradient(
-    colors: [Color(0xFFF97316), Color(0xFFEF4444)],
+    colors: [Color(0xFFE8762A), Color(0xFFC49A3C)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

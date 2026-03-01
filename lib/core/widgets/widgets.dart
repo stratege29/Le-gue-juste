@@ -15,4 +15,5 @@ export 'haptic_wrapper.dart';
 export 'icon_badge.dart';
 export 'loading_button.dart';
 export 'skeleton_loader.dart';
+export 'staggered_animated_card.dart';
 export 'summary_card.dart';

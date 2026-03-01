@@ -186,7 +186,7 @@ class FriendsScreen extends ConsumerWidget {
                 child: const Icon(Icons.qr_code, color: AppColors.secondary),
               ),
               title: const Text('Mon QR code'),
-              subtitle: const Text('Montrez votre code a un ami'),
+              subtitle: const Text('Montrez votre code à un ami'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.pop(ctx);
@@ -245,7 +245,7 @@ class FriendsScreen extends ConsumerWidget {
                 final success = await ref.read(friendsNotifierProvider.notifier).addFriendByQrCode(code);
                 if (context.mounted) {
                   if (success) {
-                    SnackbarManager.showSuccess(context, 'Ami ajoute!');
+                    SnackbarManager.showSuccess(context, 'Ami ajouté !');
                   } else {
                     SnackbarManager.showError(context, 'Erreur lors de l\'ajout');
                   }
@@ -276,7 +276,7 @@ class FriendsScreen extends ConsumerWidget {
               Navigator.pop(ctx);
               await ref.read(friendsNotifierProvider.notifier).removeFriend(friend.id);
               if (context.mounted) {
-                SnackbarManager.showSuccess(context, 'Ami supprime');
+                SnackbarManager.showSuccess(context, 'Ami supprimé');
               }
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),

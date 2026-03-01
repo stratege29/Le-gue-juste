@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,13 +114,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
         forceResendingToken: _resendToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-verification (Android)
-          await _signInWithCredential(credential);
+          try {
+            await _signInWithCredential(credential);
+          } on FirebaseAuthException catch (e) {
+            debugPrint('verificationCompleted FirebaseAuthException: ${e.code} - ${e.message}');
+            state = state.copyWith(
+              isLoading: false,
+              errorMessage: _mapAuthError(e),
+            );
+          } catch (e) {
+            debugPrint('verificationCompleted error: $e');
+            state = state.copyWith(
+              isLoading: false,
+              errorMessage: 'La vérification automatique a échoué. Veuillez entrer le code manuellement.',
+            );
+          }
         },
         verificationFailed: (FirebaseAuthException e) {
-          print('DEBUG verificationFailed: code=${e.code} message=${e.message}');
           state = state.copyWith(
             isLoading: false,
-            errorMessage: '[${e.code}] ${e.message ?? _mapAuthError(e)}',
+            errorMessage: _mapAuthError(e),
           );
         },
         codeSent: (String verificationId, int? resendToken) {
@@ -135,18 +149,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
           state = state.copyWith(verificationId: verificationId);
         },
       );
-    } catch (e) {
-      print('DEBUG sendOtp catch: $e');
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Erreur: $e',
+        errorMessage: 'Impossible d\'envoyer le SMS. Vérifiez votre connexion internet.',
       );
     }
   }
 
   Future<void> verifyOtp(String smsCode) async {
     if (state.verificationId == null) {
-      state = state.copyWith(errorMessage: 'Verification ID not found');
+      state = state.copyWith(errorMessage: 'Session expirée. Veuillez redemander un code.');
       return;
     }
 
@@ -163,10 +176,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         errorMessage: _mapAuthError(e),
       );
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Invalid verification code',
+        errorMessage: 'Code de vérification invalide.',
       );
     }
   }
@@ -189,10 +202,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> createProfile(String displayName) async {
+  Future<void> createProfile(String displayName, {String? avatarEmoji}) async {
     final user = _auth.currentUser;
     if (user == null) {
-      state = state.copyWith(errorMessage: 'User not found');
+      state = state.copyWith(errorMessage: 'Utilisateur non trouvé. Veuillez vous reconnecter.');
       return;
     }
 
@@ -202,25 +215,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final now = DateTime.now();
       final qrCode = _generateQrCode(user.uid);
 
-      await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(user.uid)
-          .set({
+      final data = <String, dynamic>{
         FirebaseConstants.phoneNumber: user.phoneNumber,
         FirebaseConstants.displayName: displayName,
         FirebaseConstants.qrCode: qrCode,
         FirebaseConstants.createdAt: Timestamp.fromDate(now),
         FirebaseConstants.updatedAt: Timestamp.fromDate(now),
-      });
+      };
+
+      if (avatarEmoji != null) {
+        data[FirebaseConstants.avatarUrl] = 'emoji:$avatarEmoji';
+      }
+
+      await _firestore
+          .collection(FirebaseConstants.usersCollection)
+          .doc(user.uid)
+          .set(data);
+
+      // Invalidate cached user so router redirect sees the new profile
+      _ref.invalidate(currentUserProvider);
 
       state = state.copyWith(
         isLoading: false,
         needsProfileSetup: false,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('createProfile error: $e');
+      debugPrint('createProfile stackTrace: $stackTrace');
+      final detail = kDebugMode ? '\n($e)' : '';
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Failed to create profile',
+        errorMessage: 'Impossible de créer le profil. Veuillez réessayer.$detail',
       );
     }
   }
@@ -262,7 +287,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Failed to update profile',
+        errorMessage: 'Impossible de mettre à jour le profil.',
       );
     }
   }
@@ -295,7 +320,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Failed to upload avatar',
+        errorMessage: 'Impossible de télécharger l\'avatar.',
       );
       return null;
     }
@@ -313,15 +338,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
   String _mapAuthError(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-phone-number':
-        return 'Invalid phone number format';
+        return 'Numéro de téléphone invalide.';
       case 'too-many-requests':
-        return 'Too many requests. Please try again later.';
+        return 'Trop de tentatives. Veuillez réessayer dans quelques minutes.';
       case 'invalid-verification-code':
-        return 'Invalid verification code';
+        return 'Code de vérification invalide.';
       case 'session-expired':
-        return 'Session expired. Please request a new code.';
+        return 'Session expirée. Veuillez redemander un code.';
+      case 'network-request-failed':
+        return 'Erreur réseau. Vérifiez votre connexion internet.';
+      case 'quota-exceeded':
+        return 'Quota SMS dépassé. Veuillez réessayer plus tard.';
+      case 'user-disabled':
+        return 'Ce compte a été désactivé.';
+      case 'credential-already-in-use':
+        return 'Ce numéro est déjà associé à un autre compte.';
       default:
-        return e.message ?? 'An error occurred';
+        debugPrint('Unhandled FirebaseAuthException code: ${e.code}, message: ${e.message}');
+        return 'Une erreur est survenue. Veuillez réessayer.';
     }
   }
 }

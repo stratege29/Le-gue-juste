@@ -58,7 +58,7 @@ class TestDataSeeder {
       // User OWES money here (Alice paid for hotel, Bob paid for activities)
       final group1Ref = await _firestore.collection(FirebaseConstants.groupsCollection).add({
         FirebaseConstants.groupName: 'Vacances Espagne',
-        FirebaseConstants.groupDescription: 'Voyage a Barcelone',
+        FirebaseConstants.groupDescription: 'Voyage à Barcelone',
         FirebaseConstants.groupCreatedBy: currentUser.uid,
         FirebaseConstants.groupMemberIds: [currentUser.uid, aliceId, bobId],
         FirebaseConstants.groupCurrency: 'EUR',
@@ -134,7 +134,7 @@ class TestDataSeeder {
       // User is OWED money here (User paid rent and utilities)
       final group2Ref = await _firestore.collection(FirebaseConstants.groupsCollection).add({
         FirebaseConstants.groupName: 'Coloc Appartement',
-        FirebaseConstants.groupDescription: 'Depenses colocation',
+        FirebaseConstants.groupDescription: 'Dépenses colocation',
         FirebaseConstants.groupCreatedBy: currentUser.uid,
         FirebaseConstants.groupMemberIds: [currentUser.uid, charlieId],
         FirebaseConstants.groupCurrency: 'EUR',

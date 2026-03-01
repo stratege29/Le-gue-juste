@@ -31,109 +31,114 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     final memberNamesAsync = ref.watch(groupMemberNamesProvider(widget.groupId));
     final currentUser = ref.watch(currentUserProvider);
 
+    // Single consolidated loading check across all async providers
+    final isLoading = groupAsync.isLoading ||
+        memberNamesAsync.isLoading ||
+        currentUser.isLoading;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rembourser'),
       ),
-      body: groupAsync.when(
-        data: (group) {
-          if (group == null) {
-            return const Center(child: Text('Groupe non trouve'));
-          }
+      body: isLoading
+          ? const SkeletonScreen(itemCount: 3, showSummaryCard: true)
+          : groupAsync.when(
+              data: (group) {
+                if (group == null) {
+                  return const Center(child: Text('Groupe non trouvé'));
+                }
 
-          final currencySymbol =
-              AppConstants.currencySymbols[group.currency] ?? group.currency;
+                final user = currentUser.valueOrNull;
+                if (user == null) {
+                  return const Center(child: Text('Non connecté'));
+                }
 
-          return memberNamesAsync.when(
-            data: (memberNames) {
-              return currentUser.when(
-                data: (user) {
-                  if (user == null) {
-                    return const Center(child: Text('Non connecte'));
-                  }
+                final memberNames = memberNamesAsync.valueOrNull ?? {};
+                final currencySymbol =
+                    AppConstants.currencySymbols[group.currency] ?? group.currency;
 
-                  // Filter debts where current user is involved
-                  final myDebts = debts.where((d) =>
-                      d.fromUserId == user.id || d.toUserId == user.id).toList();
+                // Filter debts where current user is involved
+                final myDebts = debts
+                    .where((d) =>
+                        d.fromUserId == user.id || d.toUserId == user.id)
+                    .toList();
 
-                  if (myDebts.isEmpty) {
-                    return const AllSettledStateWidget(
-                      subtitle: 'Aucun remboursement necessaire dans ce groupe',
-                    );
-                  }
-
-                  // Calculate totals for summary
-                  double totalOwed = 0;
-                  double totalOwing = 0;
-                  for (final debt in myDebts) {
-                    if (debt.fromUserId == user.id) {
-                      totalOwing += debt.amount;
-                    } else {
-                      totalOwed += debt.amount;
-                    }
-                  }
-
-                  return RadioGroup<DebtEntity>(
-                    groupValue: _selectedDebt,
-                    onChanged: (value) {
-                      HapticFeedback.selectionClick();
-                      setState(() {
-                        _selectedDebt = value;
-                      });
-                    },
-                    child: Column(
-                      children: [
-                        // Debts summary
-                        DebtSummaryCard(
-                          totalOwing: totalOwing,
-                          totalOwed: totalOwed,
-                          currencySymbol: currencySymbol,
-                        ),
-                        const SizedBox(height: 16),
-                        // Select debt to settle
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'Selectionnez un remboursement',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Debt cards
-                        Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: myDebts.length,
-                            itemBuilder: (context, index) {
-                              final debt = myDebts[index];
-                              final isSelected = _selectedDebt == debt;
-                              return _buildDebtCard(
-                                context,
-                                debt,
-                                memberNames,
-                                currencySymbol,
-                                user.id,
-                                isSelected,
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
+                if (myDebts.isEmpty) {
+                  return const AllSettledStateWidget(
+                    subtitle: 'Aucun remboursement nécessaire dans ce groupe',
                   );
-                },
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (_, __) => const Center(child: Text('Erreur')),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(child: Text('Erreur')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Erreur: $error')),
-      ),
+                }
+
+                // Calculate totals for summary
+                double totalOwed = 0;
+                double totalOwing = 0;
+                for (final debt in myDebts) {
+                  if (debt.fromUserId == user.id) {
+                    totalOwing += debt.amount;
+                  } else {
+                    totalOwed += debt.amount;
+                  }
+                }
+
+                return RadioGroup<DebtEntity>(
+                  groupValue: _selectedDebt,
+                  onChanged: (value) {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _selectedDebt = value;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      // Debts summary
+                      DebtSummaryCard(
+                        totalOwing: totalOwing,
+                        totalOwed: totalOwed,
+                        currencySymbol: currencySymbol,
+                      ),
+                      const SizedBox(height: 16),
+                      // Select debt to settle
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Sélectionnez un remboursement',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Debt cards
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: myDebts.length,
+                          itemBuilder: (context, index) {
+                            final debt = myDebts[index];
+                            final isSelected = _selectedDebt == debt;
+                            return _buildDebtCard(
+                              context,
+                              debt,
+                              memberNames,
+                              currencySymbol,
+                              user.id,
+                              isSelected,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SkeletonScreen(itemCount: 3),
+              error: (error, _) => EmptyStateWidget(
+                icon: Icons.error_outline,
+                title: 'Une erreur est survenue',
+                description: 'Impossible de charger les données',
+                actionLabel: 'Réessayer',
+                onAction: () => ref.invalidate(groupProvider(widget.groupId)),
+                iconColor: AppColors.error,
+              ),
+            ),
       bottomNavigationBar: _selectedDebt != null
           ? _buildSettleButton(context)
           : null,
@@ -157,7 +162,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
 
     return Semantics(
       label: isOwing
-          ? 'Vous devez $formattedAmount a $otherUserName'
+          ? 'Vous devez $formattedAmount à $otherUserName'
           : '$otherUserName vous doit $formattedAmount',
       selected: isSelected,
       button: true,
@@ -189,7 +194,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                     children: [
                       Text(
                         isOwing
-                            ? 'Vous devez a $otherUserName'
+                            ? 'Vous devez à $otherUserName'
                             : '$otherUserName vous doit',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
@@ -200,7 +205,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                       Text(
                         isOwing
                             ? 'Remboursez cette dette'
-                            : 'Marquez comme rembourse',
+                            : 'Marquez comme remboursé',
                         style: TextStyle(
                           color: AppColors.gray500,
                           fontSize: 12,
@@ -321,7 +326,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
               controller: noteController,
               decoration: const InputDecoration(
                 labelText: 'Note (optionnel)',
-                hintText: 'Ex: Virement, especes...',
+                hintText: 'Ex : Virement, espèces...',
               ),
             ),
           ],
@@ -383,7 +388,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                   ..clearSnackBars()
                   ..showSnackBar(
                     const SnackBar(
-                      content: Text('Remboursement enregistre!'),
+                      content: Text('Remboursement enregistré !'),
                       backgroundColor: AppColors.success,
                     ),
                   );

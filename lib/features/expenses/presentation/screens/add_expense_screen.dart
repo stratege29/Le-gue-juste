@@ -71,7 +71,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nouvelle depense'),
+        title: const Text('Nouvelle dépense'),
         actions: [
           SaveButton(
             isLoading: addExpenseState.isLoading,
@@ -96,11 +96,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             const SizedBox(height: 8),
             _buildDatePicker(context, addExpenseState),
             const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Paye par'),
+            _buildSectionTitle(context, 'Payé par'),
             const SizedBox(height: 8),
             _buildPayerChips(group, addExpenseState, currentUser, memberNames),
             const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Repartition'),
+            _buildSectionTitle(context, 'Répartition'),
             const SizedBox(height: 8),
             _buildSplitTypeSelector(addExpenseState),
             const SizedBox(height: 16),
@@ -112,7 +112,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               _buildCustomSplitInputs(addExpenseState, currentUser, memberNames),
             ],
             const SizedBox(height: 24),
-            _buildSectionTitle(context, 'Categorie'),
+            _buildSectionTitle(context, 'Catégorie'),
             const SizedBox(height: 8),
             _buildCategoryPicker(addExpenseState),
           ],
@@ -202,7 +202,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       controller: _descriptionController,
       textCapitalization: TextCapitalization.sentences,
       decoration: const InputDecoration(
-        hintText: 'Ex: Restaurant, Courses...',
+        hintText: 'Ex : Restaurant, Courses...',
       ),
       onChanged: (value) {
         ref.read(addExpenseStateProvider.notifier).setDescription(value);
@@ -257,12 +257,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   Widget _buildSplitTypeSelector(dynamic addExpenseState) {
     return Semantics(
-      label: 'Methode de repartition',
+      label: 'Méthode de répartition',
       child: SegmentedButton<SplitType>(
         segments: const [
           ButtonSegment(
             value: SplitType.equal,
-            label: Text('Egal'),
+            label: Text('Égal'),
             icon: Icon(Icons.drag_handle),
           ),
           ButtonSegment(
@@ -378,7 +378,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   ) {
     final participants = addExpenseState.participantIds as List<String>;
     final isExact = addExpenseState.splitType == SplitType.exact;
-    final suffix = isExact ? '€' : '%';
+    final currencySymbol = AppConstants.currencySymbols[addExpenseState.currency] ?? addExpenseState.currency;
+    final suffix = isExact ? currencySymbol : '%';
     final total = isExact ? addExpenseState.amount as double : 100.0;
     // Calculate entered sum and how many fields are empty
     double enteredSum = 0;
@@ -461,7 +462,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           Text(
             remaining >= 0
                 ? 'Restant: ${remaining.toStringAsFixed(2)} $suffix'
-                : 'Depassement: ${(-remaining).toStringAsFixed(2)} $suffix',
+                : 'Dépassement: ${(-remaining).toStringAsFixed(2)} $suffix',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -575,7 +576,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (expenseId != null && mounted) {
       ref.read(addExpenseStateProvider.notifier).reset();
       Navigator.pop(context);
-      SnackbarManager.showSuccess(context, 'Depense ajoutee!');
+      SnackbarManager.showSuccess(context, 'Dépense ajoutée !');
     }
   }
 }

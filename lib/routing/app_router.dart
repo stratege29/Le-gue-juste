@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,7 @@ import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/groups/presentation/screens/groups_list_screen.dart';
 import '../features/groups/presentation/screens/group_detail_screen.dart';
 import '../features/groups/presentation/screens/create_group_screen.dart';
+import '../features/expenses/presentation/screens/add_expense_screen.dart';
 import '../features/balances/presentation/screens/balances_screen.dart';
 import '../features/auth/presentation/screens/profile_screen.dart';
 import '../features/qr_code/presentation/screens/my_qr_code_screen.dart';
@@ -23,23 +25,47 @@ import '../features/notifications/presentation/screens/notifications_screen.dart
 import '../features/settlements/presentation/screens/settle_up_screen.dart';
 import 'shell_scaffold.dart';
 
+/// Minimum splash display time so animations play fully
+final splashMinTimeProvider = FutureProvider<bool>((ref) async {
+  await Future.delayed(const Duration(milliseconds: 2000));
+  return true;
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
   final currentUser = ref.watch(currentUserProvider);
   final firebaseAuth = ref.watch(firebaseAuthProvider);
+  final splashMinTime = ref.watch(splashMinTimeProvider);
 
   return GoRouter(
     initialLocation: RouteConstants.splash,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
     refreshListenable: GoRouterRefreshStream(firebaseAuth.authStateChanges()),
     redirect: (context, state) {
-      final isLoggedIn = authState.valueOrNull != null;
-      final isLoggingIn = state.matchedLocation.startsWith('/auth');
       final isSplash = state.matchedLocation == RouteConstants.splash;
+
+      // Stay on splash until minimum display time has elapsed
+      if (isSplash && splashMinTime.isLoading) {
+        return null;
+      }
+
+      // While auth is still loading, stay on splash
+      if (authState.isLoading) {
+        return isSplash ? null : RouteConstants.splash;
+      }
+
+      final isLoggedIn = authState.valueOrNull != null;
+
+      // If logged in but profile still loading, stay on splash
+      if (isLoggedIn && currentUser.isLoading) {
+        return isSplash ? null : RouteConstants.splash;
+      }
+
+      final isLoggingIn = state.matchedLocation.startsWith('/auth');
       final isProfileSetup = state.matchedLocation == RouteConstants.profileSetup;
       final hasProfile = currentUser.valueOrNull != null;
 
-      // If on splash, redirect based on auth state
+      // If on splash, redirect based on resolved auth state
       if (isSplash) {
         if (!isLoggedIn) return RouteConstants.phoneInput;
         return hasProfile ? RouteConstants.groups : RouteConstants.profileSetup;
@@ -79,8 +105,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RouteConstants.otpVerification,
+        redirect: (context, state) {
+          // Guard: redirect to phone input if no phone number provided (e.g. deep-link)
+          if (state.extra == null || (state.extra as String).isEmpty) {
+            return RouteConstants.phoneInput;
+          }
+          return null;
+        },
         pageBuilder: (context, state) {
-          final phoneNumber = state.extra as String? ?? '';
+          final phoneNumber = state.extra as String;
           return AnimatedPage(
             key: state.pageKey,
             child: OtpVerificationScreen(phoneNumber: phoneNumber),
@@ -126,6 +159,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                   );
                 },
                 routes: [
+                  GoRoute(
+                    path: 'add-expense',
+                    pageBuilder: (context, state) {
+                      final groupId = state.pathParameters['groupId']!;
+                      return AnimatedPage(
+                        key: state.pageKey,
+                        child: AddExpenseScreen(groupId: groupId),
+                      );
+                    },
+                  ),
                   GoRoute(
                     path: 'settle',
                     pageBuilder: (context, state) {
@@ -339,7 +382,7 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _overlayOpacity.value,
                 child: Stack(
                   children: [
-                    // Top overlay: dark to transparent
+                    // Top overlay: dark green to transparent
                     Positioned(
                       top: 0,
                       left: 0,
@@ -351,8 +394,8 @@ class _SplashScreenState extends State<SplashScreen>
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.black.withValues(alpha: 0.4),
-                              Colors.black.withValues(alpha: 0.15),
+                              const Color(0xFF0D4A22).withValues(alpha: 0.4),
+                              const Color(0xFF0D4A22).withValues(alpha: 0.15),
                               Colors.transparent,
                             ],
                             stops: const [0.0, 0.6, 1.0],
@@ -360,7 +403,7 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                     ),
-                    // Bottom overlay: transparent to dark
+                    // Bottom overlay: transparent to dark green
                     Positioned(
                       bottom: 0,
                       left: 0,
@@ -373,8 +416,8 @@ class _SplashScreenState extends State<SplashScreen>
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black.withValues(alpha: 0.2),
-                              Colors.black.withValues(alpha: 0.55),
+                              const Color(0xFF0D4A22).withValues(alpha: 0.2),
+                              const Color(0xFF0D4A22).withValues(alpha: 0.55),
                             ],
                             stops: const [0.0, 0.4, 1.0],
                           ),
@@ -391,10 +434,12 @@ class _SplashScreenState extends State<SplashScreen>
           AnimatedBuilder(
             animation: _mainController,
             builder: (context, _) {
-              return Column(
+              return SafeArea(
+                bottom: true,
+                child: Column(
                 children: [
-                  // Logo in upper portion (~20% from top)
-                  SizedBox(height: size.height * 0.12),
+                  // Logo in upper portion
+                  SizedBox(height: size.height * 0.08),
                   Opacity(
                     opacity: _logoOpacity.value,
                     child: Transform.scale(
@@ -423,7 +468,7 @@ class _SplashScreenState extends State<SplashScreen>
                         },
                         child: Image.asset(
                           'assets/images/logo.png',
-                          width: size.width * 0.6,
+                          width: size.width * 0.75,
                         ),
                       ),
                     ),
@@ -478,10 +523,10 @@ class _SplashScreenState extends State<SplashScreen>
                                   height: 8,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Colors.white,
+                                    color: const Color(0xFFC49A3C),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.white
+                                        color: const Color(0xFFC49A3C)
                                             .withValues(alpha: 0.4),
                                         blurRadius: 4,
                                       ),
@@ -498,6 +543,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                   SizedBox(height: size.height * 0.08),
                 ],
+              ),
               );
             },
           ),
@@ -516,7 +562,7 @@ class ErrorScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Error')),
+      appBar: AppBar(title: const Text('Erreur')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -524,20 +570,13 @@ class ErrorScreen extends StatelessWidget {
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
             Text(
-              'Page not found',
+              'Page introuvable',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 8),
-            if (error != null)
-              Text(
-                error.toString(),
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go(RouteConstants.groups),
-              child: const Text('Go Home'),
+              child: const Text('Retour à l\'accueil'),
             ),
           ],
         ),

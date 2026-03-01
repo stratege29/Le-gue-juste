@@ -7,7 +7,7 @@ import '../theme/app_colors.dart';
 ///
 /// Usage:
 /// ```dart
-/// SnackbarManager.showSuccess(context, 'Operation reussie!');
+/// SnackbarManager.showSuccess(context, 'Opération réussie !');
 /// SnackbarManager.showError(context, 'Une erreur est survenue');
 /// ```
 class SnackbarManager {
