@@ -11,6 +11,11 @@ class FirebaseConstants {
   static const String membersSubcollection = 'members';
   static const String expensesSubcollection = 'expenses';
   static const String settlementsSubcollection = 'settlements';
+  static const String friendRequestsSubcollection = 'friend_requests';
+
+  // Notification types
+  static const String friendRequestType = 'friend_request';
+  static const String friendRequestAcceptedType = 'friend_request_accepted';
 
   // User fields
   static const String phoneNumber = 'phoneNumber';

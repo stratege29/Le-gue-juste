@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/firebase_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
+import '../../../friends/presentation/providers/friends_provider.dart';
 import '../providers/notifications_provider.dart';
 
 class NotificationsScreen extends ConsumerWidget {
@@ -95,13 +98,14 @@ class NotificationsScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, NotificationEntity notification) {
     final icon = _getNotificationIcon(notification.type);
     final color = _getNotificationColor(notification.type);
+    final isFriendRequest = notification.type == FirebaseConstants.friendRequestType;
 
     return Semantics(
       label: '${notification.title}. ${notification.body}. ${notification.isRead ? "Lu" : "Non lu"}',
       button: true,
       child: Dismissible(
         key: Key(notification.id),
-        direction: DismissDirection.endToStart,
+        direction: isFriendRequest ? DismissDirection.none : DismissDirection.endToStart,
         background: Container(
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 20),
@@ -119,17 +123,17 @@ class NotificationsScreen extends ConsumerWidget {
           margin: const EdgeInsets.only(bottom: 12),
           color: notification.isRead ? null : AppColors.primary.withValues(alpha: 0.05),
           child: InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              // Mark as read
-              if (!notification.isRead) {
-                ref.read(notificationsNotifierProvider.notifier).markAsRead(notification.id);
-              }
-              // Navigate if there's a group
-              if (notification.groupId != null) {
-                context.push('/groups/${notification.groupId}');
-              }
-            },
+            onTap: isFriendRequest
+                ? null
+                : () {
+                    HapticFeedback.lightImpact();
+                    if (!notification.isRead) {
+                      ref.read(notificationsNotifierProvider.notifier).markAsRead(notification.id);
+                    }
+                    if (notification.groupId != null) {
+                      context.push('/groups/${notification.groupId}');
+                    }
+                  },
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -175,6 +179,10 @@ class NotificationsScreen extends ConsumerWidget {
                           fontSize: 13,
                         ),
                       ),
+                      if (isFriendRequest && notification.requestId != null) ...[
+                        const SizedBox(height: 12),
+                        _FriendRequestActions(notification: notification),
+                      ],
                       const SizedBox(height: 8),
                       Text(
                         _formatDate(notification.createdAt),
@@ -205,6 +213,10 @@ class NotificationsScreen extends ConsumerWidget {
         return Icons.payments;
       case 'payment_reminder':
         return Icons.notification_important;
+      case FirebaseConstants.friendRequestType:
+        return Icons.person_add;
+      case FirebaseConstants.friendRequestAcceptedType:
+        return Icons.how_to_reg;
       default:
         return Icons.notifications;
     }
@@ -220,6 +232,10 @@ class NotificationsScreen extends ConsumerWidget {
         return AppColors.success;
       case 'payment_reminder':
         return AppColors.warning;
+      case FirebaseConstants.friendRequestType:
+        return Colors.green;
+      case FirebaseConstants.friendRequestAcceptedType:
+        return AppColors.primary;
       default:
         return AppColors.gray600;
     }
@@ -266,5 +282,91 @@ class NotificationsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class _FriendRequestActions extends ConsumerStatefulWidget {
+  final NotificationEntity notification;
+
+  const _FriendRequestActions({required this.notification});
+
+  @override
+  ConsumerState<_FriendRequestActions> createState() => _FriendRequestActionsState();
+}
+
+class _FriendRequestActionsState extends ConsumerState<_FriendRequestActions> {
+  bool _processing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_processing) {
+      return const SizedBox(
+        height: 36,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return Row(
+      children: [
+        FilledButton.tonal(
+          onPressed: () => _accept(context),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.green.withValues(alpha: 0.1),
+            foregroundColor: Colors.green,
+          ),
+          child: const Text('Accepter'),
+        ),
+        const SizedBox(width: 8),
+        TextButton(
+          onPressed: () => _decline(context),
+          style: TextButton.styleFrom(foregroundColor: AppColors.error),
+          child: const Text('Refuser'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _accept(BuildContext context) async {
+    setState(() => _processing = true);
+    HapticFeedback.mediumImpact();
+
+    final notification = widget.notification;
+
+    // Build a FriendRequestEntity from notification data
+    final request = FriendRequestEntity(
+      id: notification.requestId!,
+      fromUserId: notification.fromUserId ?? '',
+      fromDisplayName: '', // will be looked up in provider
+      fromPhoneNumber: '',
+      status: 'pending',
+      createdAt: notification.createdAt,
+    );
+
+    final success = await ref.read(friendsNotifierProvider.notifier).acceptFriendRequest(request);
+
+    if (!mounted) return;
+
+    if (success) {
+      SnackbarManager.showSuccess(context, 'Demande acceptée !');
+    } else {
+      setState(() => _processing = false);
+      SnackbarManager.showError(context, 'Erreur lors de l\'acceptation');
+    }
+  }
+
+  Future<void> _decline(BuildContext context) async {
+    setState(() => _processing = true);
+    HapticFeedback.mediumImpact();
+
+    final success = await ref.read(friendsNotifierProvider.notifier).declineFriendRequest(widget.notification.requestId!);
+
+    if (!mounted) return;
+
+    if (success) {
+      SnackbarManager.showSuccess(context, 'Demande refusée');
+    } else {
+      setState(() => _processing = false);
+      SnackbarManager.showError(context, 'Erreur');
+    }
   }
 }

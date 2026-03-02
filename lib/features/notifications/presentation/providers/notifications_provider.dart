@@ -36,6 +36,7 @@ final userNotificationsProvider = StreamProvider<List<NotificationEntity>>((ref)
               groupId: data['groupId'] as String?,
               expenseId: data['expenseId'] as String?,
               fromUserId: data['fromUserId'] as String?,
+              requestId: data['requestId'] as String?,
               createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
               isRead: data['isRead'] as bool? ?? false,
             );
