@@ -30,6 +30,12 @@ class RouteConstants {
   static const String settings = '/profile/settings';
   static const String notifications = '/notifications';
 
+  // Contacts
+  static const String contactsPicker = '/friends/contacts';
+
+  // Deep link routes
+  static const String friendInvite = '/friend-invite';
+
   // Activity routes
   static const String activity = '/activity';
 }

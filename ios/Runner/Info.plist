@@ -11,6 +11,7 @@
 			<array>
 				<string>com.googleusercontent.apps.901241848860-ios</string>
 				<string>app-1-901241848860-ios-b39b413a6a872d6e89cbd9</string>
+				<string>leguejuste</string>
 			</array>
 		</dict>
 	</array>
@@ -61,5 +62,7 @@
 	<string>LeGuJuste a besoin d'acceder a votre camera pour scanner les QR codes et ajouter des amis ou membres de groupe.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>LeGuJuste a besoin d'acceder a vos photos pour changer votre photo de profil ou celle d'un groupe.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>LeGuJuste a besoin d'acceder a vos contacts pour retrouver vos amis qui utilisent l'application.</string>
 </dict>
 </plist>

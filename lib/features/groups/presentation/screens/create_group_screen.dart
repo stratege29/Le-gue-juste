@@ -71,12 +71,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     setState(() => _isLoading = false);
 
     if (groupId != null && mounted) {
-      SnackbarManager.showSuccess(context, 'Groupe créé !');
+      SnackbarManager.showSuccess(context, 'Gazoil créé !');
       context.pop();
       context.push('/groups/$groupId');
     } else if (mounted) {
       SnackbarManager.showError(
-          context, 'Erreur lors de la création du groupe');
+          context, 'Erreur lors de la création du gazoil');
     }
   }
 
@@ -169,7 +169,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nouveau groupe'),
+        title: const Text('Nouveau gazoil'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -228,7 +228,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
               // B. Group Name Field
               Text(
-                'Nom du groupe',
+                'Nom du gazoil',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -419,7 +419,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       onPressed: () {
                         HapticFeedback.selectionClick();
                         Share.share(
-                          'Rejoins-moi sur LeGuJuste pour partager nos dépenses !',
+                          'Rejoins-moi sur LeGuJuste pour partager nos dépenses !\n\nTu as déjà l\'app ? Ajoute-moi en ami pour que je t\'invite dans le groupe.\n\nPas encore l\'app ? Télécharge-la ici : https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste',
                           subject: 'Invitation LeGuJuste',
                         );
                       },
@@ -435,7 +435,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               SizedBox(
                 width: double.infinity,
                 child: LoadingButton(
-                  label: 'Créer le groupe',
+                  label: 'Créer le gazoil',
                   isLoading: _isLoading,
                   onPressed: _createGroup,
                   minHeight: 56,

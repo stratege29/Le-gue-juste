@@ -37,7 +37,7 @@ class GroupDetailScreen extends ConsumerWidget {
         if (group == null) {
           return Scaffold(
             appBar: AppBar(),
-            body: const Center(child: Text('Groupe non trouvé')),
+            body: const Center(child: Text('Gazoil non trouvé')),
           );
         }
 
@@ -65,11 +65,11 @@ class GroupDetailScreen extends ConsumerWidget {
                 ),
               ),
               Semantics(
-                label: 'Paramètres du groupe',
+                label: 'Paramètres du gazoil',
                 button: true,
                 child: IconButton(
                   icon: const Icon(Icons.settings),
-                  tooltip: 'Paramètres du groupe',
+                  tooltip: 'Paramètres du gazoil',
                   onPressed: () {
                     HapticFeedback.lightImpact();
                     _showGroupSettings(context, ref, group.name, group.id);
@@ -146,7 +146,7 @@ class GroupDetailScreen extends ConsumerWidget {
         body: EmptyStateWidget(
           icon: Icons.error_outline,
           title: 'Une erreur est survenue',
-          description: 'Impossible de charger les données du groupe',
+          description: 'Impossible de charger les données du gazoil',
           actionLabel: 'Réessayer',
           onAction: () => ref.invalidate(groupProvider(groupId)),
           iconColor: AppColors.error,
@@ -399,8 +399,8 @@ class GroupDetailScreen extends ConsumerWidget {
               subtitle: const Text('Envoyez une invitation'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
-                final shareText = 'Rejoins mon groupe "$groupName" sur LeGuJuste pour partager nos dépenses !\n\nTélécharge l\'app et scanne mon QR code pour rejoindre le groupe.';
-                final shareSubject = 'Invitation au groupe $groupName';
+                final shareText = 'Rejoins mon gazoil "$groupName" sur LeGuJuste !\n\nTélécharge l\'app et ajoute-moi en ami pour que je t\'invite au groupe.\n\n📲 https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste';
+                final shareSubject = 'Invitation au gazoil $groupName';
                 Navigator.pop(ctx);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   Share.share(shareText, subject: shareSubject);
@@ -422,7 +422,7 @@ class GroupDetailScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Paramètres du groupe',
+              'Paramètres du gazoil',
               style: Theme.of(ctx).textTheme.titleLarge,
             ),
             const SizedBox(height: 24),
@@ -435,7 +435,7 @@ class GroupDetailScreen extends ConsumerWidget {
                 ),
                 child: const Icon(Icons.edit, color: AppColors.primary),
               ),
-              title: const Text('Modifier le groupe'),
+              title: const Text('Modifier le gazoil'),
               subtitle: Text(groupName),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
@@ -452,8 +452,8 @@ class GroupDetailScreen extends ConsumerWidget {
                 ),
                 child: const Icon(Icons.exit_to_app, color: AppColors.error),
               ),
-              title: const Text('Quitter le groupe'),
-              subtitle: const Text('Vous ne verrez plus ce groupe'),
+              title: const Text('Quitter le gazoil'),
+              subtitle: const Text('Vous ne verrez plus ce gazoil'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.pop(ctx);
@@ -475,7 +475,7 @@ class GroupDetailScreen extends ConsumerWidget {
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
-            labelText: 'Nom du groupe',
+            labelText: 'Nom du gazoil',
           ),
           autofocus: true,
         ),
@@ -506,8 +506,8 @@ class GroupDetailScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Quitter le groupe?'),
-        content: const Text('Vous ne pourrez plus voir les dépenses de ce groupe.'),
+        title: const Text('Quitter le gazoil ?'),
+        content: const Text('Vous ne pourrez plus voir les dépenses de ce gazoil.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

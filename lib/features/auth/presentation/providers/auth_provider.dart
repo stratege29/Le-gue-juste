@@ -105,6 +105,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier(this._auth, this._firestore, this._storage, this._ref) : super(const AuthState());
 
   Future<void> sendOtp(String phoneNumber) async {
+    debugPrint('sendOtp called with phoneNumber: "$phoneNumber"');
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
@@ -131,6 +132,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           }
         },
         verificationFailed: (FirebaseAuthException e) {
+          debugPrint('verificationFailed: code="${e.code}", message="${e.message}", stackTrace="${e.stackTrace}"');
           state = state.copyWith(
             isLoading: false,
             errorMessage: _mapAuthError(e),
@@ -149,7 +151,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
           state = state.copyWith(verificationId: verificationId);
         },
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('sendOtp error: $e');
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Impossible d\'envoyer le SMS. Vérifiez votre connexion internet.',
@@ -176,7 +179,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         errorMessage: _mapAuthError(e),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('verifyOtp error: $e');
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Code de vérification invalide.',
@@ -327,6 +331,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    // Delete FCM token before signing out
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .update({'fcmToken': FieldValue.delete()});
+      }
+    } catch (e) {
+      debugPrint('Failed to delete FCM token on signout: $e');
+    }
+
     await _auth.signOut();
     state = const AuthState();
   }
@@ -353,8 +370,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return 'Ce compte a été désactivé.';
       case 'credential-already-in-use':
         return 'Ce numéro est déjà associé à un autre compte.';
+      case 'app-not-authorized':
+        return 'L\'application n\'est pas autorisée. Contactez le support.';
+      case 'missing-client-identifier':
+        return 'Configuration manquante. Veuillez mettre à jour l\'application.';
+      case 'internal-error':
+        return 'Erreur interne Firebase. Réessayez.';
+      case 'unknown':
+        return 'Erreur inconnue Firebase. Vérifiez la configuration de l\'app.';
+      case 'web-context-cancelled':
+        return 'Vérification annulée. Veuillez réessayer.';
+      case 'captcha-check-failed':
+        return 'Vérification reCAPTCHA échouée. Veuillez réessayer.';
+      case 'missing-phone-number':
+        return 'Numéro de téléphone manquant.';
       default:
-        debugPrint('Unhandled FirebaseAuthException code: ${e.code}, message: ${e.message}');
+        debugPrint('Unhandled FirebaseAuthException code: "${e.code}", message: "${e.message}"');
+        if (kDebugMode) {
+          return 'Erreur auth [${e.code}]: ${e.message}';
+        }
         return 'Une erreur est survenue. Veuillez réessayer.';
     }
   }

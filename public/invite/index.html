@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeGuJuste - Invitation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0D4A22 0%, #1A6B3A 50%, #E8762A 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .container {
+      text-align: center;
+      padding: 40px 24px;
+      max-width: 420px;
+      width: 100%;
+    }
+    .logo {
+      width: 120px;
+      height: 120px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 48px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .tagline {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 32px;
+    }
+    .card {
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 32px 24px;
+      border: 1px solid rgba(255,255,255,0.15);
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    .card p {
+      font-size: 14px;
+      opacity: 0.85;
+      line-height: 1.5;
+    }
+    .code {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      margin-top: 12px;
+      letter-spacing: 1px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 20px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .btn-primary {
+      background: #fff;
+      color: #1A6B3A;
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.3);
+      margin-top: 12px;
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 12px;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">🤝</div>
+    <h1>LeGuJuste</h1>
+    <p class="tagline">Les bons comptes font les bons amis</p>
+
+    <div class="card">
+      <h2>Invitation d'ami</h2>
+      <p>Quelqu'un vous invite à rejoindre LeGuJuste !</p>
+      <div class="code" id="qrCode"></div>
+    </div>
+
+    <p class="status" id="status"><span class="spinner"></span>Ouverture de l'application...</p>
+
+    <div id="actions" style="display:none;">
+      <a id="openBtn" class="btn btn-primary" href="#">Ouvrir dans l'app</a>
+      <br>
+      <a id="storeBtn" class="btn btn-secondary" href="https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste">
+        Télécharger sur le Play Store
+      </a>
+    </div>
+
+    <p class="footer">LeGuJuste &copy; 2026</p>
+  </div>
+
+  <script>
+    (function() {
+      // Extract QR code from URL path: /invite/LGJ-XXXX-YYYY
+      var path = window.location.pathname;
+      var parts = path.split('/').filter(Boolean);
+      // parts = ['invite', 'LGJ-XXXX-YYYY']
+      var code = parts.length > 1 ? parts[parts.length - 1] : '';
+
+      var codeEl = document.getElementById('qrCode');
+      var statusEl = document.getElementById('status');
+      var actionsEl = document.getElementById('actions');
+      var openBtn = document.getElementById('openBtn');
+
+      if (!code) {
+        codeEl.textContent = 'Code invalide';
+        statusEl.innerHTML = 'Aucun code d\'invitation trouvé.';
+        return;
+      }
+
+      codeEl.textContent = code;
+
+      var deepLink = 'leguejuste://friend/' + encodeURIComponent(code);
+      openBtn.href = deepLink;
+
+      // Try to open the app via the deep link
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      var isAndroid = /Android/i.test(navigator.userAgent);
+
+      if (isIOS || isAndroid) {
+        // Try opening the deep link
+        window.location.href = deepLink;
+
+        // After 2 seconds, show fallback buttons
+        setTimeout(function() {
+          statusEl.innerHTML = 'L\'app ne s\'est pas ouverte ? Essayez ci-dessous.';
+          actionsEl.style.display = 'block';
+        }, 2000);
+      } else {
+        // Desktop: show buttons directly
+        statusEl.innerHTML = 'Scannez le QR code depuis votre téléphone ou téléchargez l\'app.';
+        actionsEl.style.display = 'block';
+      }
+    })();
+  </script>
+</body>
+</html>

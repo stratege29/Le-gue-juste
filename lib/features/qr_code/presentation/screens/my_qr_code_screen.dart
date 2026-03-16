@@ -40,7 +40,7 @@ class MyQrCodeScreen extends ConsumerWidget {
               final user = ref.read(currentUserProvider).valueOrNull;
               if (user != null) {
                 Share.share(
-                  'Ajoutez-moi sur LeGuJuste avec ce code: ${user.qrCode}\n\nOu scannez mon QR code dans l\'app!',
+                  'Ajoutez-moi sur LeGuJuste !\n\n👉 ${user.qrCode}\n\nClique ici pour m\'ajouter : https://leguejuste.web.app/invite/${user.qrCode}\n\nPas encore l\'app ? https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste',
                   subject: 'Mon code LeGuJuste',
                 );
               }

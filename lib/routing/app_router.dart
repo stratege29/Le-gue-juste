@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/constants/route_constants.dart';
+import '../core/services/deep_link_service.dart';
+import '../core/services/push_notification_service.dart';
 import '../core/widgets/animated_page.dart';
 import '../features/auth/presentation/screens/phone_input_screen.dart';
 import '../features/auth/presentation/screens/otp_verification_screen.dart';
@@ -21,8 +23,10 @@ import '../features/auth/presentation/screens/profile_screen.dart';
 import '../features/qr_code/presentation/screens/my_qr_code_screen.dart';
 import '../features/qr_code/presentation/screens/qr_scanner_screen.dart';
 import '../features/friends/presentation/screens/friends_screen.dart';
+import '../features/friends/presentation/screens/contacts_picker_screen.dart';
 import '../features/notifications/presentation/screens/notifications_screen.dart';
 import '../features/settlements/presentation/screens/settle_up_screen.dart';
+import '../features/friends/presentation/screens/deep_link_friend_screen.dart';
 import 'shell_scaffold.dart';
 
 /// Minimum splash display time so animations play fully
@@ -84,6 +88,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       // If logged in with profile and still on auth pages, go to home
       if (isLoggedIn && hasProfile && isLoggingIn) {
         return RouteConstants.groups;
+      }
+
+      // Deep link: if pending QR code and user is authenticated with profile
+      final pendingQrCode = ref.read(pendingDeepLinkQrCodeProvider);
+      if (pendingQrCode != null && isLoggedIn && hasProfile) {
+        ref.read(pendingDeepLinkQrCodeProvider.notifier).state = null;
+        return '${RouteConstants.friendInvite}/$pendingQrCode';
+      }
+
+      // Push notification: if pending route and user is authenticated with profile
+      final pendingRoute = ref.read(pendingNotificationRouteProvider);
+      if (pendingRoute != null && isLoggedIn && hasProfile) {
+        ref.read(pendingNotificationRouteProvider.notifier).state = null;
+        return pendingRoute;
       }
 
       return null;
@@ -218,6 +236,15 @@ final routerProvider = Provider<GoRouter>((ref) {
               key: state.pageKey,
               child: const FriendsScreen(),
             ),
+            routes: [
+              GoRoute(
+                path: 'contacts',
+                pageBuilder: (context, state) => AnimatedPage(
+                  key: state.pageKey,
+                  child: const ContactsPickerScreen(),
+                ),
+              ),
+            ],
           ),
 
           // Notifications screen
@@ -239,6 +266,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           return SlideUpPage(
             key: state.pageKey,
             child: QrScannerScreen(groupId: groupId),
+          );
+        },
+      ),
+
+      // Deep link friend invite (outside shell)
+      GoRoute(
+        path: '${RouteConstants.friendInvite}/:qrCode',
+        pageBuilder: (context, state) {
+          final qrCode = state.pathParameters['qrCode']!;
+          return AnimatedPage(
+            key: state.pageKey,
+            child: DeepLinkFriendScreen(qrCode: qrCode),
           );
         },
       ),
