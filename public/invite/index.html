@@ -134,9 +134,12 @@
     <div id="actions" style="display:none;">
       <a id="openBtn" class="btn btn-primary" href="#">Ouvrir dans l'app</a>
       <br>
-      <a id="storeBtn" class="btn btn-secondary" href="https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste">
-        Télécharger sur le Play Store
+      <a id="storeBtn" class="btn btn-secondary" href="#">
+        Télécharger l'app
       </a>
+      <p id="iosNote" style="display:none; margin-top:16px; font-size:13px; opacity:0.75;">
+        Ouvre l'app LeGuJuste et va dans Amis &gt; Entrer un code pour coller ce code.
+      </p>
     </div>
 
     <p class="footer">LeGuJuste &copy; 2026</p>
@@ -144,16 +147,16 @@
 
   <script>
     (function() {
-      // Extract QR code from URL path: /invite/LGJ-XXXX-YYYY
       var path = window.location.pathname;
       var parts = path.split('/').filter(Boolean);
-      // parts = ['invite', 'LGJ-XXXX-YYYY']
       var code = parts.length > 1 ? parts[parts.length - 1] : '';
 
       var codeEl = document.getElementById('qrCode');
       var statusEl = document.getElementById('status');
       var actionsEl = document.getElementById('actions');
       var openBtn = document.getElementById('openBtn');
+      var storeBtn = document.getElementById('storeBtn');
+      var iosNote = document.getElementById('iosNote');
 
       if (!code) {
         codeEl.textContent = 'Code invalide';
@@ -166,21 +169,37 @@
       var deepLink = 'leguejuste://friend/' + encodeURIComponent(code);
       openBtn.href = deepLink;
 
-      // Try to open the app via the deep link
       var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       var isAndroid = /Android/i.test(navigator.userAgent);
+      var playStoreUrl = 'https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste';
+
+      // Configure store button based on platform
+      if (isIOS) {
+        storeBtn.textContent = '📋 Copier le code';
+        storeBtn.href = '#';
+        storeBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          navigator.clipboard.writeText(code).then(function() {
+            storeBtn.textContent = '✅ Code copié !';
+            iosNote.style.display = 'block';
+          });
+        });
+      } else if (isAndroid) {
+        storeBtn.textContent = 'Télécharger sur le Play Store';
+        storeBtn.href = playStoreUrl;
+      } else {
+        storeBtn.textContent = 'Disponible sur Android';
+        storeBtn.href = playStoreUrl;
+      }
 
       if (isIOS || isAndroid) {
-        // Try opening the deep link
         window.location.href = deepLink;
 
-        // After 2 seconds, show fallback buttons
         setTimeout(function() {
           statusEl.innerHTML = 'L\'app ne s\'est pas ouverte ? Essayez ci-dessous.';
           actionsEl.style.display = 'block';
         }, 2000);
       } else {
-        // Desktop: show buttons directly
         statusEl.innerHTML = 'Scannez le QR code depuis votre téléphone ou téléchargez l\'app.';
         actionsEl.style.display = 'block';
       }

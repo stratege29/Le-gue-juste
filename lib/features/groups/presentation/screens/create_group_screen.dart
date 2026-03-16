@@ -419,7 +419,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       onPressed: () {
                         HapticFeedback.selectionClick();
                         Share.share(
-                          'Rejoins-moi sur LeGuJuste pour partager nos dépenses !\n\nTu as déjà l\'app ? Ajoute-moi en ami pour que je t\'invite dans le groupe.\n\nPas encore l\'app ? Télécharge-la ici : https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste',
+                          'Rejoins-moi sur LeGuJuste pour partager nos dépenses !\n\nTu as déjà l\'app ? Ajoute-moi en ami pour que je t\'invite dans le groupe.\n\nPas encore l\'app ? Télécharge-la ici :\n📲 https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste',
                           subject: 'Invitation LeGuJuste',
                         );
                       },
