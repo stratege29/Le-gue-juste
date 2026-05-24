@@ -31,6 +31,12 @@ target 'Runner' do
   use_frameworks!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  # Required for Firebase Phone Auth fallback when APNs is not available
+  # (e.g. simulator, missing notification permission)
+  # See: https://firebase.google.com/docs/auth/ios/phone-auth
+  pod 'RecaptchaEnterprise', '~> 18.7'
+
   target 'RunnerTests' do
     inherit! :search_paths
   end

@@ -64,5 +64,12 @@
 	<string>LeGuJuste a besoin d'acceder a vos photos pour changer votre photo de profil ou celle d'un groupe.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>LeGuJuste a besoin d'acceder a vos contacts pour retrouver vos amis qui utilisent l'application.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
 </dict>
 </plist>
