@@ -7,12 +7,37 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:901241848860:android:4144be0779607adb89cbd9",
+        "mobilesdk_app_id": "1:901241848860:android:ab6c0ae3a031bc0289cbd9",
         "android_client_info": {
           "package_name": "com.leguejuste.leguejuste"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "901241848860-3guqiktfuorvnld59q92ltuhutumnmbp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.leguejuste.leguejuste",
+            "certificate_hash": "b08a029b0b28181c783b624150a65c7186ff6f0a"
+          }
+        },
+        {
+          "client_id": "901241848860-62d861rj2j3mgf4ihcorrmlaulv46ude.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.leguejuste.leguejuste",
+            "certificate_hash": "44610bbc73a73eee003b51a2b91c0cce6bc3f7ef"
+          }
+        },
+        {
+          "client_id": "901241848860-hg9pvuse1gdkcnpt224u1hlha2v6p7bd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.leguejuste.leguejuste",
+            "certificate_hash": "fa2c91b83ea34a544e1cb6df6605892363f34fdf"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCLrFlhzyP8AHfJIp6gKQW_ptOZzoEpjzQ"
