@@ -375,9 +375,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       case 'missing-client-identifier':
         return 'Configuration manquante. Veuillez mettre à jour l\'application.';
       case 'internal-error':
-        return 'Erreur interne Firebase. Réessayez.';
+        return 'Erreur interne [internal-error]: ${e.message ?? "no message"}';
       case 'unknown':
-        return 'Erreur inconnue Firebase. Vérifiez la configuration de l\'app.';
+        return 'Erreur inconnue [unknown]: ${e.message ?? "no message"}';
       case 'web-context-cancelled':
         return 'Vérification annulée. Veuillez réessayer.';
       case 'captcha-check-failed':

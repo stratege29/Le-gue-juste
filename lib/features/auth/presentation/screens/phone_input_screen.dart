@@ -97,8 +97,12 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
     });
 
     return Scaffold(
-      body: SafeArea(
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +258,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
                               try {
                                 _isValid = phone.isValidNumber();
                               } catch (e) {
-                                _isValid = false;
+                                _isValid = phone.number.length >= 8;
                               }
                             });
                           },
@@ -319,6 +323,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
               ),
             ],
           ),
+        ),
         ),
       ),
     );
