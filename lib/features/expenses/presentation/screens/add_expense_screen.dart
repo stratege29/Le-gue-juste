@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../providers/expenses_provider.dart';
+import 'receipt_scanner_screen.dart';
 
 /// Screen for adding a new expense to a group
 class AddExpenseScreen extends ConsumerStatefulWidget {
@@ -84,6 +86,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildScanReceiptButton(group, currentUser, memberNames),
+            const SizedBox(height: 24),
             _buildSectionTitle(context, 'Montant'),
             const SizedBox(height: 8),
             _buildAmountField(group),
@@ -118,6 +122,148 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildScanReceiptButton(
+    AsyncValue group,
+    AsyncValue currentUser,
+    Map<String, String> memberNames,
+  ) {
+    return group.when(
+      data: (g) {
+        if (g == null) return const SizedBox.shrink();
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openScanner(
+              memberIds: g.memberIds,
+              memberNames: memberNames,
+              currentUserId: currentUser.valueOrNull?.id,
+              currency: g.currency,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Scanner un reçu',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Détectez les articles et qui prend quoi',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      loading: () => const SkeletonLoader(width: double.infinity, height: 68),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Future<void> _openScanner({
+    required List<String> memberIds,
+    required Map<String, String> memberNames,
+    required String? currentUserId,
+    required String currency,
+  }) async {
+    HapticFeedback.selectionClick();
+    final result = await Navigator.of(context).push<ReceiptScanResult>(
+      MaterialPageRoute(
+        builder: (_) => ReceiptScannerScreen(
+          memberIds: memberIds,
+          memberNames: memberNames,
+          currentUserId: currentUserId,
+          currency: currency,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    _applyScanResult(result, memberIds);
+  }
+
+  void _applyScanResult(ReceiptScanResult result, List<String> memberIds) {
+    final notifier = ref.read(addExpenseStateProvider.notifier);
+
+    // Amount + description
+    _amountController.text = result.totalAmount.toStringAsFixed(2);
+    notifier.setAmount(result.totalAmount);
+    if (result.description != null) {
+      _descriptionController.text = result.description!;
+      notifier.setDescription(result.description!);
+    }
+
+    // Switch to exact split mode with one entry per participant who got items.
+    final participantIds = result.amountsPerUser.keys.toList();
+    notifier.setSplitType(SplitType.exact);
+    notifier.setParticipants(participantIds);
+
+    for (final entry in result.amountsPerUser.entries) {
+      notifier.setCustomAmount(entry.key, entry.value);
+      final controller = _getSplitController(entry.key);
+      controller.text = entry.value.toStringAsFixed(2);
+    }
+
+    // Default category to food (most common scan use case).
+    notifier.setCategory(ExpenseCategory.food);
+
+    setState(() {});
+    SnackbarManager.showSuccess(
+      context,
+      'Reçu importé ! Vérifiez et ajustez si besoin.',
     );
   }
 
