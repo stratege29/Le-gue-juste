@@ -47,7 +47,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Nouveau groupe'), findsOneWidget);
+      expect(find.text('Nouveau gazoil'), findsOneWidget);
     });
 
     testWidgets('renders group icon picker with gradient avatar', (tester) async {
@@ -64,7 +64,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Nom du groupe'), findsOneWidget);
+      expect(find.text('Nom du gazoil'), findsOneWidget);
       // First hint should be visible
       expect(
         find.text('Ex: ${AppConstants.groupNameExamples[0]}'),
@@ -148,7 +148,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Créer le groupe'), findsOneWidget);
+      expect(find.text('Créer le gazoil'), findsOneWidget);
     });
   });
 
@@ -304,7 +304,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Scroll to make the create button visible
-      final createButton = find.text('Créer le groupe');
+      final createButton = find.text('Créer le gazoil');
       await tester.ensureVisible(createButton);
       await tester.pumpAndSettle();
 
@@ -328,7 +328,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextFormField).first, 'A');
-      await tester.tap(find.text('Créer le groupe'));
+      await tester.tap(find.text('Créer le gazoil'));
       await tester.pumpAndSettle();
 
       expect(find.text('Le nom doit contenir au moins 2 caractères'), findsOneWidget);
@@ -346,7 +346,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextFormField).first, 'AB');
-      await tester.tap(find.text('Créer le groupe'));
+      await tester.tap(find.text('Créer le gazoil'));
       // Use pump() instead of pumpAndSettle() to check validation
       // immediately, before the async createGroup triggers animations
       await tester.pump();
