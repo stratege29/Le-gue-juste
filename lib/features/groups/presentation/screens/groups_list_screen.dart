@@ -22,7 +22,7 @@ class GroupsListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mes Groupes'),
+        title: const Text('Mes Gazoils'),
         actions: [
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
@@ -39,9 +39,9 @@ class GroupsListScreen extends ConsumerWidget {
           if (groups.isEmpty) {
             return EmptyStateWidget(
               icon: Icons.group_outlined,
-              title: 'Aucun groupe',
-              description: 'Créez un groupe pour commencer à partager vos dépenses',
-              actionLabel: 'Créer un groupe',
+              title: 'Aucun gazoil',
+              description: 'Créez un gazoil pour commencer à partager vos dépenses',
+              actionLabel: 'Créer un gazoil',
               onAction: () => context.push('/groups/create'),
             );
           }
@@ -52,7 +52,7 @@ class GroupsListScreen extends ConsumerWidget {
           icon: Icons.error_outline,
           iconColor: AppColors.error,
           title: 'Erreur de chargement',
-          description: 'Impossible de charger vos groupes',
+          description: 'Impossible de charger vos gazoils',
           actionLabel: 'Réessayer',
           onAction: () => ref.invalidate(userGroupsProvider),
         ),

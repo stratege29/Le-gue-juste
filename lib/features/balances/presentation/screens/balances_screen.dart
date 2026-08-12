@@ -29,8 +29,8 @@ class BalancesScreen extends ConsumerWidget {
           if (groups.isEmpty) {
             return const EmptyStateWidget(
               icon: Icons.account_balance_wallet_outlined,
-              title: 'Aucun groupe',
-              description: 'Rejoignez un groupe pour voir vos soldes',
+              title: 'Aucun gazoil',
+              description: 'Rejoignez un gazoil pour voir vos soldes',
             );
           }
 
@@ -137,7 +137,7 @@ class BalancesScreen extends ConsumerWidget {
         error: (_, __) => const EmptyStateWidget(
           icon: Icons.error_outline,
           title: 'Erreur',
-          description: 'Impossible de charger vos groupes',
+          description: 'Impossible de charger vos gazoils',
         ),
       ),
     );

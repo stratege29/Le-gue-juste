@@ -126,7 +126,7 @@ class ProfileScreen extends ConsumerWidget {
                 context,
                 icon: Icons.qr_code_scanner,
                 title: 'Scanner un QR',
-                subtitle: 'Ajoutez un ami ou rejoignez un groupe',
+                subtitle: 'Ajoutez un ami ou rejoignez un gazoil',
                 onTap: () => context.push(RouteConstants.scanQr),
               ),
               _buildMenuItem(
@@ -321,7 +321,7 @@ class ProfileScreen extends ConsumerWidget {
                         if (groupId != null) {
                           SnackbarManager.showSuccess(
                             context,
-                            'Groupe "Vacances Test" créé avec Alice et Bob !',
+                            'Gazoil "Vacances Test" créé avec Alice et Bob !',
                           );
                         } else {
                           SnackbarManager.showError(context, 'Erreur lors de la création');

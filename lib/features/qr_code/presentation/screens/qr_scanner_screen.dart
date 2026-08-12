@@ -264,7 +264,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
           final memberIds = List<String>.from(group.data()?['memberIds'] ?? []);
           if (memberIds.contains(userId)) {
-            throw Exception('$userName est déjà membre du groupe');
+            throw Exception('$userName est déjà membre du gazoil');
           }
 
           // Add member to group
@@ -274,7 +274,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           );
 
           if (mounted) {
-            SnackbarManager.showSuccess(context, '$userName a été ajouté au groupe !');
+            SnackbarManager.showSuccess(context, '$userName a été ajouté au gazoil !');
             context.pop();
           }
         } else {

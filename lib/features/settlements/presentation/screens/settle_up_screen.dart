@@ -45,7 +45,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
           : groupAsync.when(
               data: (group) {
                 if (group == null) {
-                  return const Center(child: Text('Groupe non trouvé'));
+                  return const Center(child: Text('Gazoil non trouvé'));
                 }
 
                 final user = currentUser.valueOrNull;
@@ -65,7 +65,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
 
                 if (myDebts.isEmpty) {
                   return const AllSettledStateWidget(
-                    subtitle: 'Aucun remboursement nécessaire dans ce groupe',
+                    subtitle: 'Aucun remboursement nécessaire dans ce gazoil',
                   );
                 }
 

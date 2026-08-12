@@ -84,7 +84,7 @@ class ShellScaffold extends ConsumerWidget {
             const NavigationDestination(
               icon: Icon(Icons.group_outlined),
               selectedIcon: Icon(Icons.group),
-              label: 'Groupes',
+              label: 'Gazoils',
             ),
             const NavigationDestination(
               icon: Icon(Icons.account_balance_wallet_outlined),

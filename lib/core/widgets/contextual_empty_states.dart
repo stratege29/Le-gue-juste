@@ -15,9 +15,9 @@ class NoGroupsEmptyState extends StatelessWidget {
     return _ContextualEmptyState(
       icon: Icons.group_add_outlined,
       iconColor: AppColors.primary,
-      title: 'Aucun groupe',
-      description: 'Créez ou rejoignez un groupe pour commencer à partager vos dépenses',
-      actionLabel: 'Créer un groupe',
+      title: 'Aucun gazoil',
+      description: 'Créez ou rejoignez un gazoil pour commencer à partager vos dépenses',
+      actionLabel: 'Créer un gazoil',
       onAction: onCreateGroup,
     );
   }
@@ -71,7 +71,7 @@ class NoNotificationsEmptyState extends StatelessWidget {
       icon: Icons.notifications_none_outlined,
       iconColor: AppColors.info,
       title: 'Aucune notification',
-      description: 'Vous recevrez des notifications quand quelqu\'un vous ajoutera à un groupe',
+      description: 'Vous recevrez des notifications quand quelqu\'un vous ajoutera à un gazoil',
     );
   }
 }

@@ -399,7 +399,7 @@ class GroupDetailScreen extends ConsumerWidget {
               subtitle: const Text('Envoyez une invitation'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
-                final shareText = 'Rejoins mon gazoil "$groupName" sur LeGuJuste !\n\nTélécharge l\'app et ajoute-moi en ami pour que je t\'invite au groupe.\n\n📲 https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste';
+                final shareText = 'Rejoins mon gazoil "$groupName" sur LeGuJuste !\n\nTélécharge l\'app et ajoute-moi en ami pour que je t\'invite au gazoil.\n\n📲 https://play.google.com/store/apps/details?id=com.arnaudkossea.leguejuste';
                 final shareSubject = 'Invitation au gazoil $groupName';
                 Navigator.pop(ctx);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
