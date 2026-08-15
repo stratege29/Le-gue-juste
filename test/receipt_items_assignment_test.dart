@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leguejuste/core/theme/app_theme.dart';
 import 'package:leguejuste/features/expenses/domain/entities/receipt_item.dart';
 import 'package:leguejuste/features/expenses/presentation/screens/receipt_items_assignment_screen.dart';
 import 'package:leguejuste/features/expenses/presentation/screens/receipt_scanner_screen.dart';
@@ -202,6 +203,53 @@ void main() {
 
       expect(result, isNull);
       expect(find.textContaining('supérieur à 0'), findsOneWidget);
+    });
+
+    testWidgets('les cartes suivent le thème sombre', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: ReceiptItemsAssignmentScreen(
+            receipt: ScannedReceipt(
+              items: [ReceiptItem(id: 'a', name: 'Pain', price: 2.00)],
+            ),
+            memberIds: const ['u1'],
+            memberNames: const {'u1': 'u1'},
+            currentUserId: 'u1',
+            currency: 'EUR',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final card = tester.widget<Container>(
+        find.byKey(const ValueKey('receipt-item-a')),
+      );
+      final color = (card.decoration as BoxDecoration).color;
+
+      expect(color, AppTheme.darkTheme.colorScheme.surface);
+      expect(color, isNot(Colors.white));
+    });
+
+    testWidgets('les montants XOF s\'affichent sans décimales', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReceiptItemsAssignmentScreen(
+            receipt: ScannedReceipt(
+              items: [ReceiptItem(id: 'a', name: 'Attieke', price: 13750)],
+            ),
+            memberIds: const ['u1'],
+            memberNames: const {'u1': 'u1'},
+            currentUserId: 'u1',
+            currency: 'XOF',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('13750,00'), findsNothing);
+      expect(find.textContaining('13750.00'), findsNothing);
+      expect(find.textContaining('CFA'), findsWidgets);
     });
 
     testWidgets('affiche la bannière d\'écart quand le total détecté diffère',

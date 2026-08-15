@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/currency_format.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../../domain/entities/receipt_item.dart';
 import 'receipt_scanner_screen.dart' show ReceiptScanResult;
@@ -36,8 +36,8 @@ class _ReceiptItemsAssignmentScreenState
     extends State<ReceiptItemsAssignmentScreen> {
   late List<ReceiptItem> _items;
 
-  String get _currencySymbol =>
-      AppConstants.currencySymbols[widget.currency] ?? widget.currency;
+  String _money(double amount) =>
+      CurrencyFormat.format(amount, widget.currency);
 
   @override
   void initState() {
@@ -255,10 +255,13 @@ class _ReceiptItemsAssignmentScreenState
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Total détecté: ${detected.toStringAsFixed(2)} $_currencySymbol — '
-              'somme des articles: ${_itemsTotal.toStringAsFixed(2)} $_currencySymbol. '
+              'Total détecté: ${_money(detected)} — '
+              'somme des articles: ${_money(_itemsTotal)}. '
               'Vérifiez ou ajoutez les articles manquants.',
-              style: const TextStyle(fontSize: 13, color: AppColors.gray800),
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
         ],
@@ -267,11 +270,13 @@ class _ReceiptItemsAssignmentScreenState
   }
 
   Widget _buildItemCard(ReceiptItem item) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
+      key: ValueKey('receipt-item-${item.id}'),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gray200),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -303,10 +308,10 @@ class _ReceiptItemsAssignmentScreenState
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${item.total.toStringAsFixed(2)} $_currencySymbol',
-                          style: const TextStyle(
+                          _money(item.total),
+                          style: TextStyle(
                             fontSize: 14,
-                            color: AppColors.gray600,
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -314,8 +319,8 @@ class _ReceiptItemsAssignmentScreenState
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.edit_outlined,
-                      size: 20, color: AppColors.gray500),
+                  icon: Icon(Icons.edit_outlined,
+                      size: 20, color: scheme.onSurfaceVariant),
                   onPressed: () => _editItem(item),
                   tooltip: 'Modifier',
                 ),
@@ -347,7 +352,7 @@ class _ReceiptItemsAssignmentScreenState
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.gray600,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                     const Spacer(),
@@ -386,14 +391,14 @@ class _ReceiptItemsAssignmentScreenState
                         _displayName(uid),
                         style: TextStyle(
                           fontSize: 13,
-                          color: isSelected ? Colors.white : AppColors.gray800,
+                          color: isSelected ? Colors.white : scheme.onSurface,
                           fontWeight:
                               isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                       ),
                       selected: isSelected,
                       selectedColor: AppColors.primary,
-                      backgroundColor: AppColors.gray100,
+                      backgroundColor: scheme.surfaceContainerHighest,
                       checkmarkColor: Colors.white,
                       side: BorderSide.none,
                       onSelected: (_) => _toggleAssignment(item.id, uid),
@@ -414,7 +419,10 @@ class _ReceiptItemsAssignmentScreenState
       label: const Text('Ajouter un article'),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        side: BorderSide(color: AppColors.gray300, style: BorderStyle.solid),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant,
+          style: BorderStyle.solid,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       onPressed: _addItem,
@@ -422,14 +430,17 @@ class _ReceiptItemsAssignmentScreenState
   }
 
   Widget _buildSummaryBar(Map<String, double> userTotals) {
+    final scheme = Theme.of(context).colorScheme;
+    // != 0, not > 0: a discount can leave a participant with a negative share,
+    // and hiding it here would contradict the total shown just above.
     final activeUsers = userTotals.entries
-        .where((e) => e.value > 0)
+        .where((e) => e.value != 0)
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -456,15 +467,15 @@ class _ReceiptItemsAssignmentScreenState
                   Text(
                     'Total',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.gray600,
+                          color: scheme.onSurfaceVariant,
                         ),
                   ),
                   const Spacer(),
                   Text(
-                    '${_itemsTotal.toStringAsFixed(2)} $_currencySymbol',
+                    _money(_itemsTotal),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.gray900,
+                          color: scheme.onSurface,
                         ),
                   ),
                 ],
@@ -484,7 +495,7 @@ class _ReceiptItemsAssignmentScreenState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
+                          color: scheme.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Row(
@@ -492,18 +503,18 @@ class _ReceiptItemsAssignmentScreenState
                           children: [
                             Text(
                               _displayName(entry.key),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
+                                color: scheme.primary,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${entry.value.toStringAsFixed(2)} $_currencySymbol',
-                              style: const TextStyle(
+                              _money(entry.value),
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppColors.primaryDark,
+                                color: scheme.primary,
                               ),
                             ),
                           ],
@@ -561,15 +572,17 @@ class _EditItemSheetState extends State<_EditItemSheet> {
   late final TextEditingController _price;
   late final TextEditingController _qty;
 
-  String get _symbol =>
-      AppConstants.currencySymbols[widget.currency] ?? widget.currency;
+  String get _symbol => CurrencyFormat.symbol(widget.currency);
 
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.item.name);
     _price = TextEditingController(
-        text: widget.item.price == 0 ? '' : widget.item.price.toStringAsFixed(2));
+      text: widget.item.price == 0
+          ? ''
+          : CurrencyFormat.forInput(widget.item.price, widget.currency),
+    );
     _qty = TextEditingController(text: widget.item.quantity.toString());
   }
 
@@ -606,9 +619,10 @@ class _EditItemSheetState extends State<_EditItemSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
@@ -620,7 +634,7 @@ class _EditItemSheetState extends State<_EditItemSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.gray300,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

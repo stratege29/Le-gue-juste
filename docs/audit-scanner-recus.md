@@ -14,10 +14,11 @@ pilotant l'écran d'affectation jusqu'au `ReceiptScanResult`.
 [test/receipt_text_layout_test.dart](../test/receipt_text_layout_test.dart) et
 [test/receipt_items_assignment_test.dart](../test/receipt_items_assignment_test.dart).
 
-**Suivi des correctifs** — BUG-1 à BUG-6 ont tous été **corrigés** après
-l'audit ; leurs tests sont actifs et servent de garde anti-régression. Suite
-complète : 176 passent, 0 `skip`. Les points UX de la dernière section restent
-ouverts.
+**Suivi des correctifs** — BUG-1 à BUG-6 **et** les sept points de la section
+« UX / robustesse » ont été corrigés après l'audit ; les tests correspondants
+sont actifs et servent de garde anti-régression. Suite complète : 187 passent,
+0 `skip`. Restent ouverts le bruit d'en-tête et le nettoyage cosmétique des
+noms (section « extraction / couverture »).
 
 ---
 
@@ -163,58 +164,74 @@ plutôt qu'à corriger.
 
 ## UX / robustesse
 
-### Le retour arrière depuis l'affectation perd le scan — **moyen**
+Les sept points de cette section ont été corrigés après l'audit.
 
-[receipt_scanner_screen.dart:218](../lib/features/expenses/presentation/screens/receipt_scanner_screen.dart#L218)
+### Le retour arrière depuis l'affectation perd le scan — **moyen** · ✅ corrigé
 
-Si l'utilisateur revient en arrière depuis l'écran d'affectation, le
-`ScannedReceipt` est jeté et il doit **reprendre la photo**. Le résultat OCR
-devrait être conservé dans le state pour permettre un « réessayer ».
+Si l'utilisateur revenait en arrière depuis l'écran d'affectation, le
+`ScannedReceipt` était jeté et il devait **reprendre la photo**.
 
-### Erreur de permission affichée en brut — **moyen**
+Correctif : le scanner conserve le dernier `ScannedReceipt` et affiche une carte
+« Dernier scan — N articles / Reprendre » qui rouvre l'affectation sans
+rephotographier.
 
-[receipt_scanner_screen.dart:232](../lib/features/expenses/presentation/screens/receipt_scanner_screen.dart#L232)
+### Erreur de permission affichée en brut — **moyen** · ✅ corrigé
 
-```dart
-SnackbarManager.showError(context, "Erreur lors du scan: $e");
-```
+Un refus de permission remontait `PlatformException(camera_access_denied, …)` tel
+quel dans une UI française.
 
-Un refus de permission caméra remonte `PlatformException(camera_access_denied,
-…)` tel quel dans une UI française. Il faudrait distinguer le cas permission et
-proposer d'ouvrir les réglages (`permission_handler` est déjà une dépendance du
-projet).
+Correctif : `PlatformException` est interceptée à part ; `camera_access_denied` et
+`photo_access_denied` produisent un message explicite avec une action
+« Réglages » qui appelle `openAppSettings()` (`permission_handler`, déjà une
+dépendance). Les autres erreurs donnent un message générique, sans détail
+technique.
 
-### Modèle OCR non encore téléchargé (Android) — **moyen**
+### Modèle OCR non encore téléchargé (Android) — **moyen** · ✅ corrigé
 
 Le manifeste déclare `com.google.mlkit.vision.DEPENDENCIES = ocr`, ce qui délègue
 le téléchargement du modèle à Play Services. Au premier lancement sur un appareil
-neuf (ou hors ligne), la reconnaissance peut renvoyer un texte vide → le message
-affiché est « Aucun article détecté », trompeur. Distinguer ce cas.
+neuf (ou hors ligne), la reconnaissance renvoie un texte vide → le message
+affiché était « Aucun article détecté », trompeur.
 
-### Double lancement du picker — **faible**
+Correctif : le message distingue désormais « aucun texte lu » (photo illisible,
+avec une mention du téléchargement au premier scan sur Android) de « texte lu
+mais aucun article reconnu » (cadrage). `ScannedReceipt.rawText` sert de
+discriminant.
 
-`_processing` n'est mis à `true` qu'**après** `pickImage`. Deux taps rapides sur
-« Prendre une photo » lancent deux pickers.
+### Double lancement du picker — **faible** · ✅ corrigé
 
-### Photo temporaire jamais supprimée — **faible**
+`_processing` n'était mis à `true` qu'**après** `pickImage`. Correctif : un flag
+`_busy` couvre la fenêtre entre le tap et le passage en traitement.
 
-Le fichier copié par `image_picker` dans le cache n'est pas supprimé après OCR.
-Les photos de reçus s'accumulent dans le cache de l'app.
+### Photo temporaire jamais supprimée — **faible** · ✅ corrigé
 
-### Thème sombre non géré — **moyen**
+Correctif : le fichier est supprimé dans le `finally` qui suit l'OCR. C'est la
+copie faite par `image_picker` dans le cache de l'app — la pellicule de
+l'utilisateur n'est pas touchée. La suppression est best-effort et n'échoue
+jamais un scan.
 
-L'app expose un `darkTheme` ([app.dart:55](../lib/app.dart#L55)), mais l'écran
-d'affectation code en dur `Colors.white` pour les cartes d'articles
-([:261](../lib/features/expenses/presentation/screens/receipt_items_assignment_screen.dart#L261)),
-la barre de résumé ([:421](../lib/features/expenses/presentation/screens/receipt_items_assignment_screen.dart#L421))
-et la bottom sheet d'édition
-([:598](../lib/features/expenses/presentation/screens/receipt_items_assignment_screen.dart#L598)).
-En mode sombre, ces surfaces restent blanches.
+### Thème sombre non géré — **moyen** · ✅ corrigé
 
-### Décimales affichées en XOF — **faible**
+L'app expose un `darkTheme` ([app.dart:55](../lib/app.dart#L55)) mais les écrans
+du scanner codaient `Colors.white` en dur.
 
-`toStringAsFixed(2)` partout → « 13 750.00 FCFA ». Le franc CFA n'a pas de
-subdivision ; l'affichage devrait suivre la devise.
+Correctif : cartes d'articles, barre de résumé, bottom sheet d'édition, chips,
+tuiles de source et bordures passent par `Theme.of(context).colorScheme`
+(`surface`, `onSurface`, `onSurfaceVariant`, `outlineVariant`,
+`surfaceContainerHighest`). Couvert par un test qui vérifie que la carte
+d'article prend bien `AppTheme.darkTheme.colorScheme.surface`.
+
+### Décimales affichées en XOF — **faible** · ✅ corrigé
+
+`toStringAsFixed(2)` partout → « 13750.00 CFA ». Le franc CFA n'a pas de
+subdivision.
+
+Correctif : nouveau
+[`CurrencyFormat`](../lib/core/utils/currency_format.dart) — `format()` pour
+l'affichage (0 décimale en XOF/XAF, 2 ailleurs, séparateurs de milliers et
+virgule décimale FR), `forInput()` pour pré-remplir un champ texte sans symbole
+ni séparateur, afin de rester parseable par `double.tryParse`. Utilisé par
+l'écran d'affectation et par le pré-remplissage du formulaire de dépense.
 
 ---
 
@@ -250,5 +267,11 @@ subdivision ; l'affichage devrait suivre la devise.
 | 4 | BUG-4 « A PAYER » | Perte du filet de sécurité | Trivial | ✅ corrigé |
 | 5 | BUG-2 prix fantôme (`X8`) | Montant inventé | Moyen | ✅ corrigé |
 | 6 | BUG-6 layout 2 colonnes | Fonctionnalité inutilisable sur certains tickets | Moyen | ✅ corrigé |
-| 7 | Erreur permission en brut | UX | Faible | ⚠️ ouvert |
-| 8 | Thème sombre | UX | Faible | ⚠️ ouvert |
+| 7 | Erreur permission en brut | UX | Faible | ✅ corrigé |
+| 8 | Thème sombre | UX | Faible | ✅ corrigé |
+
+Reste ouvert après ces deux passes : le **bruit d'en-tête** lu comme un article
+(« Table 12 Couverts 3 ») et le **nettoyage cosmétique des noms** (points de
+conduite, « Kg X » résiduel). Les deux sont dans la section
+« extraction / couverture » et n'ont pas d'impact monétaire au-delà de l'écart
+déjà signalé par la bannière.
