@@ -9,7 +9,6 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.901241848860-ios</string>
 				<string>app-1-901241848860-ios-b39b413a6a872d6e89cbd9</string>
 				<string>leguejuste</string>
 			</array>
