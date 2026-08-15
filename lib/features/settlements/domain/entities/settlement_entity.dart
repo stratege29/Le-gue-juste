@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 
 enum SettlementStatus { pending, confirmed }
 
+enum PaymentMethod { manual, wave }
+
 class SettlementEntity extends Equatable {
   final String id;
   final String groupId;
@@ -13,6 +15,7 @@ class SettlementEntity extends Equatable {
   final DateTime? confirmedAt;
   final SettlementStatus status;
   final String? note;
+  final PaymentMethod paymentMethod;
 
   const SettlementEntity({
     required this.id,
@@ -25,6 +28,7 @@ class SettlementEntity extends Equatable {
     this.confirmedAt,
     required this.status,
     this.note,
+    this.paymentMethod = PaymentMethod.manual,
   });
 
   SettlementEntity copyWith({
@@ -38,6 +42,7 @@ class SettlementEntity extends Equatable {
     DateTime? confirmedAt,
     SettlementStatus? status,
     String? note,
+    PaymentMethod? paymentMethod,
   }) {
     return SettlementEntity(
       id: id ?? this.id,
@@ -50,11 +55,13 @@ class SettlementEntity extends Equatable {
       confirmedAt: confirmedAt ?? this.confirmedAt,
       status: status ?? this.status,
       note: note ?? this.note,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 
   bool get isConfirmed => status == SettlementStatus.confirmed;
   bool get isPending => status == SettlementStatus.pending;
+  bool get isWavePayment => paymentMethod == PaymentMethod.wave;
 
   @override
   List<Object?> get props => [
@@ -68,5 +75,6 @@ class SettlementEntity extends Equatable {
         confirmedAt,
         status,
         note,
+        paymentMethod,
       ];
 }

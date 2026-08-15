@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/firebase_constants.dart';
+import '../../../../core/services/wave_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -11,6 +13,7 @@ import '../../../expenses/presentation/providers/expenses_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../balances/domain/entities/balance_entity.dart';
 import '../providers/settlements_provider.dart';
+import '../widgets/payment_method_bottom_sheet.dart';
 
 class SettleUpScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -274,16 +277,141 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     );
   }
 
-  void _showSettleDialog(BuildContext context) {
+  Future<void> _showSettleDialog(BuildContext context) async {
     if (_selectedDebt == null) return;
 
+    final method = await PaymentMethodBottomSheet.show(context);
+    if (method == null || !context.mounted) return;
+
+    if (method == PaymentMethod.wave) {
+      await _handleWavePayment(context);
+    } else {
+      _showManualSettleDialog(context);
+    }
+  }
+
+  Future<void> _handleWavePayment(BuildContext context) async {
+    final debt = _selectedDebt!;
+    final groupAsync = ref.read(groupProvider(widget.groupId));
+    final currentUser = ref.read(currentUserProvider).valueOrNull;
+    if (currentUser == null) return;
+
+    final isOwing = debt.fromUserId == currentUser.id;
+    final recipientId = isOwing ? debt.toUserId : debt.fromUserId;
+
+    // Fetch recipient phone number from Firestore
+    final userDoc = await ref
+        .read(firestoreProvider)
+        .collection(FirebaseConstants.usersCollection)
+        .doc(recipientId)
+        .get();
+
+    if (!context.mounted) return;
+
+    final phoneNumber = userDoc.data()?['phoneNumber'] as String?;
+    if (phoneNumber == null || phoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Numéro de téléphone du destinataire introuvable'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      return;
+    }
+
+    final amount = debt.amount.round();
+    final launched = await WaveService.launchWavePayment(
+      phoneNumber: phoneNumber,
+      amount: amount,
+    );
+
+    if (!context.mounted) return;
+
+    if (!launched) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Impossible d\'ouvrir Wave'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      return;
+    }
+
+    // After returning from Wave, ask for confirmation
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Paiement Wave'),
+        content: const Text('Avez-vous effectué le paiement via Wave ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non'),
+          ),
+          FilledButton(
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Oui, c\'est fait'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final currency = groupAsync.valueOrNull?.currency ?? 'XOF';
+    final success = await ref
+        .read(settlementsNotifierProvider.notifier)
+        .createSettlement(
+          groupId: widget.groupId,
+          fromUserId: debt.fromUserId,
+          toUserId: debt.toUserId,
+          amount: debt.amount,
+          currency: currency,
+          note: 'Paiement Wave',
+          paymentMethod: PaymentMethod.wave,
+        );
+
+    if (!context.mounted) return;
+
+    if (success) {
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Paiement Wave enregistré !'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      Navigator.pop(context);
+    } else {
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Erreur lors de l\'enregistrement'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+    }
+  }
+
+  void _showManualSettleDialog(BuildContext context) {
+    final debt = _selectedDebt!;
     final groupAsync = ref.read(groupProvider(widget.groupId));
     final memberNames = ref.read(groupMemberNamesProvider(widget.groupId));
     final currentUser = ref.read(currentUserProvider).valueOrNull;
 
     if (currentUser == null) return;
 
-    final debt = _selectedDebt!;
     final isOwing = debt.fromUserId == currentUser.id;
     final otherUserId = isOwing ? debt.toUserId : debt.fromUserId;
     final otherUserName =
@@ -358,16 +486,13 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                 return;
               }
 
-              // Store note before closing dialog
               final note = noteController.text.isNotEmpty
                   ? noteController.text
                   : null;
               final currency = groupAsync.valueOrNull?.currency ?? 'EUR';
 
-              // Close dialog first
               if (ctx.mounted) Navigator.pop(ctx);
 
-              // Then perform async operation
               final success = await ref
                   .read(settlementsNotifierProvider.notifier)
                   .createSettlement(
@@ -379,7 +504,6 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                     note: note,
                   );
 
-              // Check if screen is still mounted before navigation
               if (!context.mounted) return;
 
               if (success) {

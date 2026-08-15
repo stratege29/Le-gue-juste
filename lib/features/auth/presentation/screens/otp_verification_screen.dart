@@ -216,8 +216,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
                   children: List.generate(6, (index) {
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      width: 48,
-                      height: 56,
+                      width: 50,
+                      height: 60,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: _focusNodes[index].hasFocus
@@ -234,16 +234,23 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
                           keyboardType: TextInputType.number,
                           maxLength: 1,
                           style: const TextStyle(
-                            fontSize: 24,
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
+                            color: AppColors.gray900,
+                            height: 1.0,
                           ),
                           decoration: InputDecoration(
                             counterText: '',
                             filled: true,
                             fillColor: AppColors.gray100,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                              borderSide: BorderSide(color: AppColors.gray300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.gray300),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
