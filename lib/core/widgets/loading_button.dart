@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -69,42 +71,19 @@ class LoadingButton extends StatelessWidget {
               : Text(key: const ValueKey('label'), label),
     );
 
-    // Animated width: shrink to circle when loading
-    final buttonChild = AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      constraints: BoxConstraints(
-        minWidth: isLoading ? minHeight : double.infinity,
-        minHeight: minHeight,
-      ),
-      child: child,
-    );
-
     switch (style) {
       case LoadingButtonStyle.elevated:
-        return Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            width: isLoading ? minHeight * 2 : double.infinity,
-            height: minHeight,
-            child: ElevatedButton(
-              onPressed: isDisabled ? null : handlePress,
-              child: buttonChild,
-            ),
+        return _animatedWidth(
+          ElevatedButton(
+            onPressed: isDisabled ? null : handlePress,
+            child: child,
           ),
         );
       case LoadingButtonStyle.outlined:
-        return Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            width: isLoading ? minHeight * 2 : double.infinity,
-            height: minHeight,
-            child: OutlinedButton(
-              onPressed: isDisabled ? null : handlePress,
-              child: buttonChild,
-            ),
+        return _animatedWidth(
+          OutlinedButton(
+            onPressed: isDisabled ? null : handlePress,
+            child: child,
           ),
         );
       case LoadingButtonStyle.text:
@@ -116,6 +95,35 @@ class LoadingButton extends StatelessWidget {
           ),
         );
     }
+  }
+
+  /// Wraps [button] in a width animation that shrinks it to a pill while
+  /// loading.
+  ///
+  /// The animation always runs between two *finite* widths: interpolating
+  /// towards `double.infinity` makes [AnimatedContainer] assert with
+  /// "Cannot interpolate between finite constraints and unbounded
+  /// constraints". When the incoming constraints are unbounded there is no
+  /// finite target width, so the button simply sizes itself to its content.
+  Widget _animatedWidth(Widget button) {
+    return Center(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+          if (!maxWidth.isFinite) {
+            return SizedBox(height: minHeight, child: button);
+          }
+          final collapsedWidth = math.min(minHeight * 2, maxWidth);
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            width: isLoading ? collapsedWidth : maxWidth,
+            height: minHeight,
+            child: button,
+          );
+        },
+      ),
+    );
   }
 }
 
