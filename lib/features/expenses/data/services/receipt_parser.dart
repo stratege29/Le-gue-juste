@@ -8,10 +8,13 @@ class ReceiptParser {
   ReceiptParser._();
 
   // Matches a price at the end of a line.
-  // Examples it captures: "1,50", "12.50", "1 500", "12 500,50", "750"
+  // Examples it captures: "1,50", "12.50", "1 500", "12 500,50", "750", "-0,50"
   // Allows optional trailing currency token (EUR, €, FCFA, XOF, F, CFA).
+  // Group 1 = optional minus sign (discount lines), group 2 = the digits.
+  // The leading (?:^|\s) is what keeps a digit glued to the product name out of
+  // the price slot: "YAOURT X8" must not be read as an 8,00 item.
   static final RegExp _trailingPrice = RegExp(
-    r'(\d{1,3}(?:[  .]\d{3})*(?:[,.]\d{1,2})?|\d+(?:[,.]\d{1,2})?)\s*'
+    r'(?:^|\s)(-\s*)?(\d{1,3}(?:[  .]\d{3})*(?:[,.]\d{1,2})?|\d+(?:[,.]\d{1,2})?)\s*'
     r'(?:€|EUR|FCFA|XOF|CFA|F)?\s*$',
     caseSensitive: false,
   );
@@ -48,7 +51,9 @@ class ReceiptParser {
     RegExp(r'\bmontant\s*(total|du|à\s*payer|a\s*payer)?\b',
         caseSensitive: false),
     RegExp(r'\bsomme\s*(due|totale)?\b', caseSensitive: false),
-    RegExp(r'\bnet\s*a\s*payer\b', caseSensitive: false),
+    // "A PAYER" / "À PAYER" on its own line — covers "NET A PAYER" too.
+    // Not anchored with \b before the vowel: 'à' is not an ASCII word char.
+    RegExp(r'(?:^|\s)[aà]\s+payer\b', caseSensitive: false),
   ];
 
   static final RegExp _subtotalPattern =
@@ -69,13 +74,17 @@ class ReceiptParser {
       final line = _normalize(raw);
 
       // 1. Try total line first — extract value, do not add as item.
-      if (_isTotalLine(line) && !_subtotalPattern.hasMatch(line)) {
-        final price = _extractTrailingPrice(line);
-        if (price != null) {
-          // Keep the largest plausible total (some receipts have multiple
-          // "total" mentions: total HT, total TTC, total a payer).
-          if (detectedTotal == null || price > detectedTotal) {
-            detectedTotal = price;
+      // A "sous-total" is neither the total nor an item: it must be dropped,
+      // otherwise the whole receipt gets counted twice.
+      if (_isTotalLine(line)) {
+        if (!_subtotalPattern.hasMatch(line)) {
+          final price = _extractTrailingPrice(line);
+          if (price != null) {
+            // Keep the largest plausible total (some receipts have multiple
+            // "total" mentions: total HT, total TTC, total a payer).
+            if (detectedTotal == null || price > detectedTotal) {
+              detectedTotal = price;
+            }
           }
         }
         continue;
@@ -116,13 +125,17 @@ class ReceiptParser {
     final match = _trailingPrice.firstMatch(line);
     if (match == null) return null;
 
-    final priceStr = match.group(1)!;
-    final price = _parsePrice(priceStr);
-    if (price == null || price <= 0) return null;
+    final parsed = _parsePrice(match.group(2)!);
+    if (parsed == null || parsed == 0) return null;
+
+    // A leading minus marks a discount line ("REMISE -0,50"): keep it as a
+    // negative amount so it lowers the receipt instead of inflating it.
+    final isDiscount = match.group(1) != null;
+    var lineTotal = isDiscount ? -parsed : parsed;
 
     // Plausibility: prices below 0.05 are usually OCR noise on a barcode digit.
     // (XOF has no fractional prices, but minimum is typically ≥ 10 FCFA.)
-    if (price < 0.05) return null;
+    if (lineTotal.abs() < 0.05) return null;
 
     // Name = everything before the matched price.
     var name = line.substring(0, match.start).trim();
@@ -146,7 +159,11 @@ class ReceiptParser {
     // Capitalize nicely: first letter of each word, lowercase rest.
     name = _titleCase(name);
 
-    return ReceiptItem(name: name, price: price, quantity: qty);
+    // On a French receipt the trailing amount of a "N x ..." line is the LINE
+    // total, not the unit price — divide so price * quantity stays faithful.
+    final unitPrice = qty > 1 ? lineTotal / qty : lineTotal;
+
+    return ReceiptItem(name: name, price: unitPrice, quantity: qty);
   }
 
   static double? _parsePrice(String s) {
@@ -176,7 +193,9 @@ class ReceiptParser {
   static double? _extractTrailingPrice(String line) {
     final m = _trailingPrice.firstMatch(line);
     if (m == null) return null;
-    return _parsePrice(m.group(1)!);
+    final value = _parsePrice(m.group(2)!);
+    if (value == null) return null;
+    return m.group(1) != null ? -value : value;
   }
 
   static String _titleCase(String s) {

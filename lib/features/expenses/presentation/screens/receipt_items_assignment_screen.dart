@@ -143,13 +143,24 @@ class _ReceiptItemsAssignmentScreenState
       return;
     }
 
+    final total = _round(_itemsTotal);
+    if (total <= 0) {
+      SnackbarManager.showError(
+        context,
+        "Le total du reçu doit être supérieur à 0.",
+      );
+      return;
+    }
+
     final userTotals = _computeUserTotals();
     // Drop entries where the user owes nothing (they're not participants).
-    final filtered = <String, double>{
-      for (final e in userTotals.entries)
-        if (e.value > 0) e.key: _round(e.value),
-    };
-    _absorbRoundingDrift(filtered, _round(_itemsTotal));
+    // Amounts can be negative when the receipt carries a discount line.
+    final filtered = <String, double>{};
+    for (final e in userTotals.entries) {
+      final rounded = _round(e.value);
+      if (rounded != 0) filtered[e.key] = rounded;
+    }
+    _absorbRoundingDrift(filtered, total);
 
     // Description = "Reçu (N articles)"
     final desc = _items.length == 1
@@ -160,7 +171,7 @@ class _ReceiptItemsAssignmentScreenState
     Navigator.pop(
       context,
       ReceiptScanResult(
-        totalAmount: _round(_itemsTotal),
+        totalAmount: total,
         amountsPerUser: filtered,
         description: desc,
       ),
@@ -578,7 +589,8 @@ class _EditItemSheetState extends State<_EditItemSheet> {
       SnackbarManager.showError(context, "Le nom est requis.");
       return;
     }
-    if (price <= 0) {
+    // Negative prices are allowed: they represent a discount line.
+    if (price == 0) {
       SnackbarManager.showError(context, "Prix invalide.");
       return;
     }
@@ -637,8 +649,10 @@ class _EditItemSheetState extends State<_EditItemSheet> {
                   flex: 2,
                   child: TextField(
                     controller: _price,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Prix unitaire',
                       suffixText: _symbol,
