@@ -22,6 +22,7 @@ final groupSettlementsProvider =
       .map((snapshot) => snapshot.docs.map((doc) {
             final data = doc.data();
             final statusStr = data['status'] as String? ?? 'confirmed';
+            final paymentMethodStr = data['paymentMethod'] as String? ?? 'manual';
             return SettlementEntity(
               id: doc.id,
               groupId: groupId,
@@ -37,6 +38,9 @@ final groupSettlementsProvider =
                   ? SettlementStatus.pending
                   : SettlementStatus.confirmed,
               note: data['note'] as String?,
+              paymentMethod: paymentMethodStr == 'wave'
+                  ? PaymentMethod.wave
+                  : PaymentMethod.manual,
             );
           }).toList());
 });
@@ -64,6 +68,7 @@ class SettlementsNotifier extends StateNotifier<AsyncValue<void>> {
     required double amount,
     String currency = 'XOF',
     String? note,
+    PaymentMethod paymentMethod = PaymentMethod.manual,
   }) async {
     state = const AsyncValue.loading();
 
@@ -95,6 +100,7 @@ class SettlementsNotifier extends StateNotifier<AsyncValue<void>> {
         'createdAt': Timestamp.fromDate(now),
         'confirmedAt': Timestamp.fromDate(now),
         'status': 'confirmed',
+        'paymentMethod': paymentMethod.name,
       });
 
       final groupRef = _firestore

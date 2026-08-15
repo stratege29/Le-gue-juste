@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/firebase_constants.dart';
+import '../../../../core/services/wave_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -11,6 +13,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../expenses/presentation/providers/expenses_provider.dart';
 import '../../../settlements/presentation/providers/settlements_provider.dart';
+import '../../../settlements/presentation/widgets/payment_method_bottom_sheet.dart';
 
 class BalancesScreen extends ConsumerWidget {
   const BalancesScreen({super.key});
@@ -270,7 +273,123 @@ class BalancesScreen extends ConsumerWidget {
     );
   }
 
-  void _showSettleDialog(
+  Future<void> _showSettleDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    required String groupId,
+    required String fromUserId,
+    required String toUserId,
+    required double amount,
+    required String currency,
+    required String currencySymbol,
+    required String otherUserName,
+    required bool isUserDebtor,
+  }) async {
+    final method = await PaymentMethodBottomSheet.show(context);
+    if (method == null || !context.mounted) return;
+
+    if (method == PaymentMethod.wave) {
+      await _handleWavePayment(
+        context,
+        ref,
+        groupId: groupId,
+        fromUserId: fromUserId,
+        toUserId: toUserId,
+        amount: amount,
+        currency: currency,
+        isUserDebtor: isUserDebtor,
+      );
+    } else {
+      _showManualSettleDialog(
+        context,
+        ref,
+        groupId: groupId,
+        fromUserId: fromUserId,
+        toUserId: toUserId,
+        amount: amount,
+        currency: currency,
+        currencySymbol: currencySymbol,
+        otherUserName: otherUserName,
+        isUserDebtor: isUserDebtor,
+      );
+    }
+  }
+
+  Future<void> _handleWavePayment(
+    BuildContext context,
+    WidgetRef ref, {
+    required String groupId,
+    required String fromUserId,
+    required String toUserId,
+    required double amount,
+    required String currency,
+    required bool isUserDebtor,
+  }) async {
+    final recipientId = isUserDebtor ? toUserId : fromUserId;
+
+    final userDoc = await ref
+        .read(firestoreProvider)
+        .collection(FirebaseConstants.usersCollection)
+        .doc(recipientId)
+        .get();
+
+    if (!context.mounted) return;
+
+    final phoneNumber = userDoc.data()?['phoneNumber'] as String?;
+    if (phoneNumber == null || phoneNumber.isEmpty) {
+      SnackbarManager.showError(
+          context, 'Numéro de téléphone du destinataire introuvable');
+      return;
+    }
+
+    final launched = await WaveService.launchWavePayment(
+      phoneNumber: phoneNumber,
+      amount: amount.round(),
+    );
+
+    if (!context.mounted) return;
+
+    if (!launched) {
+      SnackbarManager.showError(context, 'Impossible d\'ouvrir Wave');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Paiement Wave'),
+        content: const Text('Avez-vous effectué le paiement via Wave ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non'),
+          ),
+          FilledButton(
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Oui, c\'est fait'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    await _settleDebt(
+      context,
+      ref,
+      groupId: groupId,
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+      amount: amount,
+      currency: currency,
+      paymentMethod: PaymentMethod.wave,
+    );
+  }
+
+  void _showManualSettleDialog(
     BuildContext context,
     WidgetRef ref, {
     required String groupId,
@@ -330,6 +449,7 @@ class BalancesScreen extends ConsumerWidget {
     required String toUserId,
     required double amount,
     required String currency,
+    PaymentMethod paymentMethod = PaymentMethod.manual,
   }) async {
     try {
       await ref.read(settlementsNotifierProvider.notifier).createSettlement(
@@ -338,10 +458,16 @@ class BalancesScreen extends ConsumerWidget {
         toUserId: toUserId,
         amount: amount,
         currency: currency,
+        paymentMethod: paymentMethod,
       );
       if (context.mounted) {
         HapticFeedback.mediumImpact();
-        SnackbarManager.showSuccess(context, 'Dette réglée !');
+        SnackbarManager.showSuccess(
+          context,
+          paymentMethod == PaymentMethod.wave
+              ? 'Paiement Wave enregistré !'
+              : 'Dette réglée !',
+        );
       }
     } catch (e) {
       if (context.mounted) {
