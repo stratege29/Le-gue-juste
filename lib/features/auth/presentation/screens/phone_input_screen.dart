@@ -96,7 +96,10 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
         context.go(RouteConstants.profileSetup);
         return;
       }
-      if (next.codeSent && next.phoneNumber != null) {
+      // Only on the false -> true transition. This screen stays mounted under
+      // the pushed OTP screen, so reacting to codeSent while it is already true
+      // would stack a second OTP screen every time the user resends a code.
+      if (next.codeSent && previous?.codeSent != true && next.phoneNumber != null) {
         context.push(
           RouteConstants.otpVerification,
           extra: next.phoneNumber,
