@@ -133,27 +133,7 @@ class _GroupCard extends ConsumerWidget {
               child: Row(
                 children: [
                   // Group avatar
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: group.imageUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.network(
-                              group.imageUrl!,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.group,
-                            color: AppColors.primary,
-                            size: 28,
-                          ),
-                  ),
+                  GroupAvatar(imageUrl: group.imageUrl),
                   const SizedBox(width: 16),
                   // Group info
                   Expanded(

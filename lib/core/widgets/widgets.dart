@@ -11,6 +11,7 @@ export 'bottom_sheet_menu.dart';
 export 'emoji_avatar.dart';
 export 'contextual_empty_states.dart';
 export 'empty_state_widget.dart';
+export 'group_avatar.dart';
 export 'haptic_wrapper.dart';
 export 'icon_badge.dart';
 export 'loading_button.dart';
