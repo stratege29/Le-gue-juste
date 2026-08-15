@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/currency_format.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -232,14 +233,17 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       ),
     );
     if (result == null || !mounted) return;
-    _applyScanResult(result, memberIds);
+    _applyScanResult(result, currency);
   }
 
-  void _applyScanResult(ReceiptScanResult result, List<String> memberIds) {
+  void _applyScanResult(ReceiptScanResult result, String currency) {
     final notifier = ref.read(addExpenseStateProvider.notifier);
 
     // Amount + description
-    _amountController.text = result.totalAmount.toStringAsFixed(2);
+    _amountController.text = CurrencyFormat.forInput(
+      result.totalAmount,
+      currency,
+    );
     notifier.setAmount(result.totalAmount);
     if (result.description != null) {
       _descriptionController.text = result.description!;
@@ -254,7 +258,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     for (final entry in result.amountsPerUser.entries) {
       notifier.setCustomAmount(entry.key, entry.value);
       final controller = _getSplitController(entry.key);
-      controller.text = entry.value.toStringAsFixed(2);
+      controller.text = CurrencyFormat.forInput(entry.value, currency);
     }
 
     // Default category to food (most common scan use case).
