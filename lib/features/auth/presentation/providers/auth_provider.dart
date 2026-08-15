@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -102,11 +103,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   int? _resendToken;
 
+  /// Guards against `verifyPhoneNumber` never calling back — mainly the iOS
+  /// reCAPTCHA fallback, which can hang and leave the UI spinning forever.
+  Timer? _sendOtpWatchdog;
+  bool _sendOtpSettled = true;
+
   AuthNotifier(this._auth, this._firestore, this._storage, this._ref) : super(const AuthState());
+
+  /// Marks the current sendOtp attempt as resolved and cancels the watchdog.
+  void _settleSendOtp() {
+    _sendOtpSettled = true;
+    _sendOtpWatchdog?.cancel();
+    _sendOtpWatchdog = null;
+  }
 
   Future<void> sendOtp(String phoneNumber) async {
     debugPrint('sendOtp called with phoneNumber: "$phoneNumber"');
     state = state.copyWith(isLoading: true, errorMessage: null);
+
+    _sendOtpWatchdog?.cancel();
+    _sendOtpSettled = false;
+    // Slightly longer than verifyPhoneNumber's own 60s timeout so Firebase gets
+    // a chance to report the failure itself before we give up on it.
+    _sendOtpWatchdog = Timer(const Duration(seconds: 75), () {
+      if (_sendOtpSettled) return;
+      _settleSendOtp();
+      debugPrint('sendOtp watchdog fired: no callback received after 75s');
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'L\'envoi du SMS n\'a pas abouti. Vérifiez votre connexion et réessayez.',
+      );
+    });
 
     try {
       await _auth.verifyPhoneNumber(
@@ -115,6 +142,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         forceResendingToken: _resendToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-verification (Android)
+          _settleSendOtp();
           try {
             await _signInWithCredential(credential);
           } on FirebaseAuthException catch (e) {
@@ -133,12 +161,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
         },
         verificationFailed: (FirebaseAuthException e) {
           debugPrint('verificationFailed: code="${e.code}", message="${e.message}", stackTrace="${e.stackTrace}"');
+          _settleSendOtp();
           state = state.copyWith(
             isLoading: false,
             errorMessage: _mapAuthError(e),
           );
         },
         codeSent: (String verificationId, int? resendToken) {
+          _settleSendOtp();
           _resendToken = resendToken;
           state = state.copyWith(
             isLoading: false,
@@ -153,11 +183,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
     } catch (e) {
       debugPrint('sendOtp error: $e');
+      _settleSendOtp();
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Impossible d\'envoyer le SMS. Vérifiez votre connexion internet.',
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _sendOtpWatchdog?.cancel();
+    super.dispose();
   }
 
   Future<void> verifyOtp(String smsCode) async {
@@ -352,10 +389,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthState();
   }
 
+  /// Message shown when Firebase refuses to send an SMS to the number's country.
+  /// Kept in sync with the SMS region allowlist configured on the Firebase project.
+  static const String _regionBlockedMessage =
+      'Les SMS ne sont pas disponibles pour ce pays. Utilisez un numéro d\'un pays pris en charge.';
+
   String _mapAuthError(FirebaseAuthException e) {
+    // Region blocking surfaces under several codes depending on the platform SDK,
+    // and sometimes only in the message, so match on both.
+    final rawMessage = (e.message ?? '').toUpperCase();
+    if (rawMessage.contains('SMS_REGION') ||
+        rawMessage.contains('UNSUPPORTED_REGION') ||
+        rawMessage.contains('REGION_NOT_ALLOWED')) {
+      return _regionBlockedMessage;
+    }
+
     switch (e.code) {
       case 'invalid-phone-number':
         return 'Numéro de téléphone invalide.';
+      case 'unsupported-first-factor':
+      case 'admin-restricted-operation':
+      case 'sms-region-not-allowed':
+      case 'unsupported-region':
+        return _regionBlockedMessage;
+      case 'operation-not-allowed':
+        return 'La connexion par SMS est désactivée sur ce projet. Contactez le support.';
+      case 'billing-not-enabled':
+        return 'Le service SMS est temporairement indisponible. Contactez le support.';
+      case 'invalid-app-credential':
+        return 'La vérification de l\'application a échoué. Réinstallez l\'application ou réessayez.';
       case 'too-many-requests':
         return 'Trop de tentatives. Veuillez réessayer dans quelques minutes.';
       case 'invalid-verification-code':

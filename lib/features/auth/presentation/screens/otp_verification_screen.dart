@@ -101,7 +101,12 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
     }
   }
 
+  /// True once the user has submitted a code, so that the loading transition of
+  /// a *resend* is not mistaken for a successful verification.
+  bool _verificationSubmitted = false;
+
   void _verifyOtp() {
+    _verificationSubmitted = true;
     ref.read(authNotifierProvider.notifier).verifyOtp(_otpCode);
   }
 
@@ -117,11 +122,18 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
     ref.listen<AuthState>(authNotifierProvider, (previous, next) {
       if (next.needsProfileSetup) {
         context.go(RouteConstants.profileSetup);
-      } else if (!next.isLoading && previous?.isLoading == true && next.errorMessage == null) {
-        // Successfully verified and profile exists
+      } else if (_verificationSubmitted &&
+          !next.isLoading &&
+          previous?.isLoading == true &&
+          next.errorMessage == null) {
+        // Successfully verified and profile exists. Guarded by
+        // _verificationSubmitted: resending a code goes through the same
+        // loading transition and would otherwise let the user in unverified.
+        _verificationSubmitted = false;
         context.go(RouteConstants.groups);
       }
       if (next.errorMessage != null) {
+        _verificationSubmitted = false;
         _triggerShake();
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()

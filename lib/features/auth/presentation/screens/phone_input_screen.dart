@@ -2,12 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl_phone_field/countries.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../providers/auth_provider.dart';
+
+/// Countries Firebase is allowed to send verification SMS to.
+///
+/// Must stay in sync with the project's `smsRegionConfig.allowlistOnly`
+/// allowlist — offering a country here that the backend rejects means the user
+/// gets an error instead of a code.
+const _allowedCountryCodes = <String>['CI', 'FR', 'SN', 'ML', 'BF', 'TG', 'BJ'];
+
+final List<Country> _supportedCountries =
+    countries.where((c) => _allowedCountryCodes.contains(c.code)).toList();
 
 class PhoneInputScreen extends ConsumerStatefulWidget {
   const PhoneInputScreen({super.key});
@@ -85,7 +96,10 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
         context.go(RouteConstants.profileSetup);
         return;
       }
-      if (next.codeSent && next.phoneNumber != null) {
+      // Only on the false -> true transition. This screen stays mounted under
+      // the pushed OTP screen, so reacting to codeSent while it is already true
+      // would stack a second OTP screen every time the user resends a code.
+      if (next.codeSent && previous?.codeSent != true && next.phoneNumber != null) {
         context.push(
           RouteConstants.otpVerification,
           extra: next.phoneNumber,
@@ -250,6 +264,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
                               ),
                             ),
                           ),
+                          countries: _supportedCountries,
                           initialCountryCode: 'CI',
                           languageCode: 'fr',
                           onChanged: (phone) {
