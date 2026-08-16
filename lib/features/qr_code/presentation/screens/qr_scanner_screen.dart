@@ -278,14 +278,18 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             context.pop();
           }
         } else {
-          // Add as friend
+          // Send a friend request (the target must accept it)
           final success = await ref.read(friendsNotifierProvider.notifier).addFriendByQrCode(qrCode);
 
           if (mounted) {
             if (success) {
-              SnackbarManager.showSuccess(context, '$userName a été ajouté à vos amis !');
+              SnackbarManager.showSuccess(context, 'Demande d\'ami envoyée à $userName !');
             } else {
-              SnackbarManager.showWarning(context, '$userName est déjà dans vos amis');
+              final errorState = ref.read(friendsNotifierProvider);
+              final errorMsg = errorState.hasError
+                  ? errorState.error.toString()
+                  : 'Impossible d\'envoyer la demande';
+              SnackbarManager.showWarning(context, errorMsg);
             }
             context.pop();
           }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -23,9 +24,20 @@ final userGroupsProvider = StreamProvider<List<GroupEntity>>((ref) {
       .where(FirebaseConstants.groupMemberIds, arrayContains: user.uid)
       .orderBy(FirebaseConstants.updatedAt, descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => GroupModel.fromFirestore(doc).toEntity())
-          .toList());
+      .map((snapshot) {
+    final groups = <GroupEntity>[];
+    for (final doc in snapshot.docs) {
+      try {
+        groups.add(GroupModel.fromFirestore(doc).toEntity());
+      } catch (e) {
+        // One malformed doc must not error the stream for every group.
+        if (kDebugMode) {
+          debugPrint('Skipping malformed group doc ${doc.id}: $e');
+        }
+      }
+    }
+    return groups;
+  });
 });
 
 /// Single group by ID
@@ -61,6 +73,8 @@ final groupMemberNamesProvider = FutureProvider.family<Map<String, String>, Stri
     chunks.map((chunk) => firestore
         .collection(FirebaseConstants.usersCollection)
         .where(FieldPath.documentId, whereIn: chunk)
+        // Les règles Firestore exigent une limite sur les list de /users
+        .limit(10)
         .get()),
   );
 
@@ -205,26 +219,28 @@ class GroupsNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       final now = DateTime.now();
 
-      // Update group memberIds
-      await _firestore
+      // Single batch: group memberIds + member subcollection entry
+      // atomically (same pattern as createGroup).
+      final batch = _firestore.batch();
+
+      final groupRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .update({
+          .doc(groupId);
+      batch.update(groupRef, {
         FirebaseConstants.groupMemberIds: FieldValue.arrayUnion([userId]),
         FirebaseConstants.updatedAt: Timestamp.fromDate(now),
       });
 
-      // Create member subcollection entry
-      await _firestore
-          .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
+      final memberRef = groupRef
           .collection(FirebaseConstants.membersSubcollection)
-          .doc(userId)
-          .set({
+          .doc(userId);
+      batch.set(memberRef, {
         'joinedAt': Timestamp.fromDate(now),
         'role': 'member',
         'balance': 0,
       });
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
@@ -239,22 +255,24 @@ class GroupsNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
 
     try {
-      // Update group memberIds
-      await _firestore
+      // Single batch: group memberIds + member subcollection entry
+      // atomically (same pattern as createGroup).
+      final batch = _firestore.batch();
+
+      final groupRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .update({
+          .doc(groupId);
+      batch.update(groupRef, {
         FirebaseConstants.groupMemberIds: FieldValue.arrayRemove([userId]),
         FirebaseConstants.updatedAt: Timestamp.now(),
       });
 
-      // Delete member subcollection entry
-      await _firestore
-          .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
+      final memberRef = groupRef
           .collection(FirebaseConstants.membersSubcollection)
-          .doc(userId)
-          .delete();
+          .doc(userId);
+      batch.delete(memberRef);
+
+      await batch.commit();
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
@@ -281,22 +299,26 @@ class GroupsNotifier extends StateNotifier<AsyncValue<void>> {
       final members = results[1];
       final settlements = results[2];
 
-      // Batch delete all subcollection docs + group doc atomically
-      final batch = _firestore.batch();
+      // Firestore batches are limited to 500 operations, so a group with a
+      // long history could never be deleted in a single batch. Delete the
+      // subcollection docs in chunks of at most 450 ops, committed
+      // sequentially, and delete the group doc LAST so a partial failure
+      // leaves the group readable and the deletion retryable.
+      final refs = <DocumentReference>[
+        ...expenses.docs.map((doc) => doc.reference),
+        ...members.docs.map((doc) => doc.reference),
+        ...settlements.docs.map((doc) => doc.reference),
+      ];
 
-      for (final doc in expenses.docs) {
-        batch.delete(doc.reference);
-      }
-      for (final doc in members.docs) {
-        batch.delete(doc.reference);
-      }
-      for (final doc in settlements.docs) {
-        batch.delete(doc.reference);
+      for (final chunk in _chunk(refs, 450)) {
+        final batch = _firestore.batch();
+        for (final ref in chunk) {
+          batch.delete(ref);
+        }
+        await batch.commit();
       }
 
-      batch.delete(groupRef);
-
-      await batch.commit();
+      await groupRef.delete();
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
