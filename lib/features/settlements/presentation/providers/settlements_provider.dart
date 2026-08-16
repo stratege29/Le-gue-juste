@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,6 +8,56 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/settlement_entity.dart';
 
 export '../../domain/entities/settlement_entity.dart';
+
+/// Parses one settlement doc tolerantly.
+///
+/// Returns null for irrecoverably malformed docs (missing user ids or
+/// amount) so a single bad doc is skipped instead of permanently erroring
+/// the settlements stream for every group member.
+SettlementEntity? _settlementFromDoc(
+  QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  String groupId,
+) {
+  try {
+    final data = doc.data();
+    final fromUserId = data['fromUserId'] as String?;
+    final toUserId = data['toUserId'] as String?;
+    final amount = (data['amount'] as num?)?.toDouble();
+    if (fromUserId == null || toUserId == null || amount == null) {
+      if (kDebugMode) {
+        debugPrint('Skipping malformed settlement doc ${doc.id}: '
+            'missing fromUserId/toUserId/amount');
+      }
+      return null;
+    }
+
+    final statusStr = data['status'] as String? ?? 'confirmed';
+    final paymentMethodStr = data['paymentMethod'] as String? ?? 'manual';
+    return SettlementEntity(
+      id: doc.id,
+      groupId: groupId,
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+      amount: amount,
+      currency: data['currency'] as String? ?? 'XOF',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      confirmedAt: (data['confirmedAt'] as Timestamp?)?.toDate(),
+      status: statusStr == 'pending'
+          ? SettlementStatus.pending
+          : SettlementStatus.confirmed,
+      note: data['note'] as String?,
+      paymentMethod: paymentMethodStr == 'wave'
+          ? PaymentMethod.wave
+          : PaymentMethod.manual,
+    );
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('Skipping malformed settlement doc ${doc.id}: $e');
+    }
+    return null;
+  }
+}
 
 /// Stream of settlements for a group
 final groupSettlementsProvider =
@@ -19,30 +70,10 @@ final groupSettlementsProvider =
       .collection(FirebaseConstants.settlementsSubcollection)
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs.map((doc) {
-            final data = doc.data();
-            final statusStr = data['status'] as String? ?? 'confirmed';
-            final paymentMethodStr = data['paymentMethod'] as String? ?? 'manual';
-            return SettlementEntity(
-              id: doc.id,
-              groupId: groupId,
-              fromUserId: data['fromUserId'] as String,
-              toUserId: data['toUserId'] as String,
-              amount: (data['amount'] as num).toDouble(),
-              currency: data['currency'] as String? ?? 'XOF',
-              createdAt: (data['createdAt'] as Timestamp).toDate(),
-              confirmedAt: data['confirmedAt'] != null
-                  ? (data['confirmedAt'] as Timestamp).toDate()
-                  : null,
-              status: statusStr == 'pending'
-                  ? SettlementStatus.pending
-                  : SettlementStatus.confirmed,
-              note: data['note'] as String?,
-              paymentMethod: paymentMethodStr == 'wave'
-                  ? PaymentMethod.wave
-                  : PaymentMethod.manual,
-            );
-          }).toList());
+      .map((snapshot) => snapshot.docs
+          .map((doc) => _settlementFromDoc(doc, groupId))
+          .whereType<SettlementEntity>()
+          .toList());
 });
 
 /// Settlements notifier for CRUD operations

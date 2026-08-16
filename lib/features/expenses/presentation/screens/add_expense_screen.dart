@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -28,6 +29,15 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
   bool _initialized = false;
+
+  /// Expense id reused across retries of the same form, so a save that
+  /// timed out (e.g. offline) then landed later cannot produce a duplicate
+  /// when the user retries: the retry overwrites the same document.
+  String? _pendingExpenseId;
+
+  /// Parses a user-typed number, accepting both "3.5" and the French "3,5".
+  static double? _parseAmount(String value) =>
+      double.tryParse(value.replaceAll(',', '.'));
 
   @override
   void dispose() {
@@ -63,6 +73,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     final addExpenseState = ref.watch(addExpenseStateProvider);
     final currentUser = ref.watch(currentUserProvider);
     final memberNamesAsync = ref.watch(groupMemberNamesProvider(widget.groupId));
+    // Real save state: the notifier that actually performs the write.
+    final saveState = ref.watch(expensesNotifierProvider);
 
     group.whenData((g) {
       if (g != null) {
@@ -77,8 +89,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         title: const Text('Nouvelle dépense'),
         actions: [
           SaveButton(
-            isLoading: addExpenseState.isLoading,
-            onPressed: _saveExpense,
+            isLoading: saveState.isLoading,
+            onPressed: saveState.isLoading ? null : _saveExpense,
           ),
         ],
       ),
@@ -338,7 +350,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               filled: false,
             ),
             onChanged: (value) {
-              final amount = double.tryParse(value) ?? 0;
+              final amount = _parseAmount(value) ?? 0;
               ref.read(addExpenseStateProvider.notifier).setAmount(amount);
             },
           ),
@@ -537,7 +549,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     for (final id in participants) {
       final controller = _getSplitController(id);
       if (controller.text.isNotEmpty) {
-        enteredSum += double.tryParse(controller.text) ?? 0;
+        enteredSum += _parseAmount(controller.text) ?? 0;
       } else {
         emptyCount++;
       }
@@ -592,7 +604,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     ),
                     onChanged: (value) {
-                      final parsed = double.tryParse(value) ?? 0;
+                      final parsed = _parseAmount(value) ?? 0;
                       if (isExact) {
                         ref.read(addExpenseStateProvider.notifier).setCustomAmount(userId, parsed);
                       } else {
@@ -655,6 +667,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   void _saveExpense() async {
+    // Double-tap protection: ignore taps while a save is in flight.
+    if (ref.read(expensesNotifierProvider).isLoading) return;
+
     HapticFeedback.mediumImpact();
 
     // Apply suggestions to empty fields before saving
@@ -665,7 +680,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       for (final id in currentState.participantIds) {
         final controller = _getSplitController(id);
         if (controller.text.isNotEmpty) {
-          enteredSum += double.tryParse(controller.text) ?? 0;
+          enteredSum += _parseAmount(controller.text) ?? 0;
         } else {
           emptyCount++;
         }
@@ -686,7 +701,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       for (final id in currentState.participantIds) {
         final controller = _getSplitController(id);
         if (controller.text.isNotEmpty) {
-          enteredSum += double.tryParse(controller.text) ?? 0;
+          enteredSum += _parseAmount(controller.text) ?? 0;
         } else {
           emptyCount++;
         }
@@ -711,6 +726,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       return;
     }
 
+    // Keep the same expense id across retries of this form so a save that
+    // timed out but eventually lands cannot be duplicated by a retry.
+    _pendingExpenseId ??= const Uuid().v4();
+
     final expenseId = await ref.read(expensesNotifierProvider.notifier).createExpense(
       groupId: widget.groupId,
       description: state.description,
@@ -721,12 +740,24 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       date: state.date,
       category: state.category,
       currency: state.currency,
+      expenseId: _pendingExpenseId,
     );
 
-    if (expenseId != null && mounted) {
+    if (!mounted) return;
+
+    if (expenseId != null) {
+      _pendingExpenseId = null;
       ref.read(addExpenseStateProvider.notifier).reset();
       Navigator.pop(context);
       SnackbarManager.showSuccess(context, 'Dépense ajoutée !');
+    } else {
+      // Stay on the screen so nothing typed is lost and the user can retry.
+      HapticFeedback.heavyImpact();
+      SnackbarManager.showError(
+        context,
+        'Impossible d\'enregistrer la dépense. '
+        'Vérifiez votre connexion puis réessayez.',
+      );
     }
   }
 }

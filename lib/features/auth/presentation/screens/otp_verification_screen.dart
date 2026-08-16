@@ -29,6 +29,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
+  /// Dedicated nodes for the KeyboardListener wrappers (backspace handling).
+  /// Hoisted into state so they are created once and properly disposed.
+  final List<FocusNode> _keyboardListenerNodes =
+      List.generate(6, (_) => FocusNode(skipTraversal: true));
+
   late final AnimationController _shakeController;
   late final Animation<double> _shakeAnimation;
 
@@ -79,6 +84,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
     for (var node in _focusNodes) {
       node.dispose();
     }
+    for (var node in _keyboardListenerNodes) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -106,6 +114,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
   bool _verificationSubmitted = false;
 
   void _verifyOtp() {
+    // A verification is already in flight (the provider also guards this):
+    // don't mark a new submission, it would double-submit the code.
+    if (ref.read(authNotifierProvider).isLoading) return;
     _verificationSubmitted = true;
     ref.read(authNotifierProvider.notifier).verifyOtp(_otpCode);
   }
@@ -134,6 +145,13 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
       }
       if (next.errorMessage != null) {
         _verificationSubmitted = false;
+        // The old code can never work once the session expired: unlock the
+        // resend button immediately instead of making the user wait out
+        // the countdown.
+        if (next.errorCode == 'session-expired') {
+          _countdownTimer?.cancel();
+          setState(() => _secondsRemaining = 0);
+        }
         _triggerShake();
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -225,7 +243,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen>
                             : [],
                       ),
                       child: KeyboardListener(
-                        focusNode: FocusNode(),
+                        focusNode: _keyboardListenerNodes[index],
                         onKeyEvent: (event) => _onKeyPressed(index, event),
                         child: TextField(
                           controller: _controllers[index],

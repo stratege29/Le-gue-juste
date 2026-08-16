@@ -10,6 +10,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../data/models/user_model.dart';
 import '../../../../core/constants/firebase_constants.dart';
+import '../../../../core/services/deep_link_service.dart';
+import '../../../../core/services/push_notification_service.dart';
 
 // Firebase Storage instance
 final firebaseStorageProvider = Provider<FirebaseStorage>((ref) {
@@ -62,6 +64,11 @@ final authNotifierProvider =
 class AuthState {
   final bool isLoading;
   final String? errorMessage;
+
+  /// FirebaseAuthException code associated with [errorMessage], when known.
+  /// Lets the UI react to specific failures (e.g. `session-expired` unlocks
+  /// the resend button) without matching on localized message text.
+  final String? errorCode;
   final String? verificationId;
   final String? phoneNumber;
   final bool codeSent;
@@ -70,6 +77,7 @@ class AuthState {
   const AuthState({
     this.isLoading = false,
     this.errorMessage,
+    this.errorCode,
     this.verificationId,
     this.phoneNumber,
     this.codeSent = false,
@@ -79,6 +87,7 @@ class AuthState {
   AuthState copyWith({
     bool? isLoading,
     String? errorMessage,
+    String? errorCode,
     String? verificationId,
     String? phoneNumber,
     bool? codeSent,
@@ -87,6 +96,7 @@ class AuthState {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
+      errorCode: errorCode,
       verificationId: verificationId ?? this.verificationId,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       codeSent: codeSent ?? this.codeSent,
@@ -118,7 +128,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> sendOtp(String phoneNumber) async {
-    debugPrint('sendOtp called with phoneNumber: "$phoneNumber"');
+    debugPrint('sendOtp called');
+
+    // A resend token is only valid for the number it was issued for: reusing
+    // it after the user changed numbers makes the SMS send fail.
+    if (state.phoneNumber != null && state.phoneNumber != phoneNumber) {
+      _resendToken = null;
+    }
+
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     _sendOtpWatchdog?.cancel();
@@ -146,10 +163,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
           try {
             await _signInWithCredential(credential);
           } on FirebaseAuthException catch (e) {
-            debugPrint('verificationCompleted FirebaseAuthException: ${e.code} - ${e.message}');
+            debugPrint('verificationCompleted FirebaseAuthException: code="${e.code}"');
             state = state.copyWith(
               isLoading: false,
               errorMessage: _mapAuthError(e),
+              errorCode: e.code,
             );
           } catch (e) {
             debugPrint('verificationCompleted error: $e');
@@ -160,11 +178,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
           }
         },
         verificationFailed: (FirebaseAuthException e) {
-          debugPrint('verificationFailed: code="${e.code}", message="${e.message}", stackTrace="${e.stackTrace}"');
+          // Only the code: the message and stack can echo the phone number.
+          debugPrint('verificationFailed: code="${e.code}"');
           _settleSendOtp();
           state = state.copyWith(
             isLoading: false,
             errorMessage: _mapAuthError(e),
+            errorCode: e.code,
           );
         },
         codeSent: (String verificationId, int? resendToken) {
@@ -198,8 +218,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> verifyOtp(String smsCode) async {
+    // In-flight guard: the OTP screen auto-submits when 6 digits are entered
+    // and the button can race it — never run two signInWithCredential calls.
+    if (state.isLoading) return;
+
     if (state.verificationId == null) {
-      state = state.copyWith(errorMessage: 'Session expirée. Veuillez redemander un code.');
+      state = state.copyWith(
+        errorMessage: 'Session expirée. Veuillez redemander un code.',
+        errorCode: 'session-expired',
+      );
       return;
     }
 
@@ -215,6 +242,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(
         isLoading: false,
         errorMessage: _mapAuthError(e),
+        errorCode: e.code,
       );
     } catch (e) {
       debugPrint('verifyOtp error: $e');
@@ -254,13 +282,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     try {
       final now = DateTime.now();
-      final qrCode = _generateQrCode(user.uid);
+      final docRef = _firestore
+          .collection(FirebaseConstants.usersCollection)
+          .doc(user.uid);
 
       final data = <String, dynamic>{
-        FirebaseConstants.phoneNumber: user.phoneNumber,
         FirebaseConstants.displayName: displayName,
-        FirebaseConstants.qrCode: qrCode,
-        FirebaseConstants.createdAt: Timestamp.fromDate(now),
         FirebaseConstants.updatedAt: Timestamp.fromDate(now),
       };
 
@@ -268,10 +295,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         data[FirebaseConstants.avatarUrl] = 'emoji:$avatarEmoji';
       }
 
-      await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(user.uid)
-          .set(data);
+      // If a profile document already exists (e.g. an existing user wrongly
+      // routed here after a transient fetch error), NEVER regenerate the QR
+      // code or reset createdAt: friends and shared invites reference them.
+      final existingDoc = await docRef.get();
+      if (existingDoc.exists) {
+        await docRef.set(data, SetOptions(merge: true));
+      } else {
+        data[FirebaseConstants.phoneNumber] = user.phoneNumber;
+        data[FirebaseConstants.qrCode] = _generateQrCode(user.uid);
+        data[FirebaseConstants.createdAt] = Timestamp.fromDate(now);
+        await docRef.set(data);
+      }
 
       // Invalidate cached user so router redirect sees the new profile
       _ref.invalidate(currentUserProvider);
@@ -382,10 +417,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
 
     await _auth.signOut();
+    _resendToken = null;
+
+    // Pending deep links / notification routes belong to the account that was
+    // signed in — never apply them to the next account on this device.
+    _ref.read(pendingDeepLinkQrCodeProvider.notifier).state = null;
+    _ref.read(pendingNotificationRouteProvider.notifier).state = null;
+
     state = const AuthState();
   }
 
   void resetState() {
+    _resendToken = null;
     state = const AuthState();
   }
 
@@ -437,9 +480,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
       case 'missing-client-identifier':
         return 'Configuration manquante. Veuillez mettre à jour l\'application.';
       case 'internal-error':
-        return 'Erreur interne [internal-error]: ${e.message ?? "no message"}';
       case 'unknown':
-        return 'Erreur inconnue [unknown]: ${e.message ?? "no message"}';
+        if (kDebugMode) {
+          return 'Erreur [${e.code}]: ${e.message ?? "no message"}';
+        }
+        return 'Une erreur est survenue. Veuillez réessayer.';
       case 'web-context-cancelled':
         return 'Vérification annulée. Veuillez réessayer.';
       case 'captcha-check-failed':

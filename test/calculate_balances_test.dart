@@ -360,6 +360,94 @@ void main() {
 
       expect(debts[0].groupId, 'group123');
     });
+
+    test('3-user cycle of expenses simplifies to minimal transfers', () {
+      // Cycle: A pays for B (10), B pays for C (20), C pays for A (30).
+      final e1 = makeExpense(
+        id: 'e1',
+        amount: 10,
+        paidBy: 'A',
+        splits: [const ExpenseSplit(userId: 'B', amount: 10)],
+      );
+      final e2 = makeExpense(
+        id: 'e2',
+        amount: 20,
+        paidBy: 'B',
+        splits: [const ExpenseSplit(userId: 'C', amount: 20)],
+      );
+      final e3 = makeExpense(
+        id: 'e3',
+        amount: 30,
+        paidBy: 'C',
+        splits: [const ExpenseSplit(userId: 'A', amount: 30)],
+      );
+
+      final balances = calculator.calculateGroupBalances(
+        expenses: [e1, e2, e3],
+        settlements: [],
+        memberIds: ['A', 'B', 'C'],
+      );
+
+      // Net: A = +10 - 30 = -20, B = +20 - 10 = +10, C = +30 - 20 = +10
+      expect(balances['A'], -20.0);
+      expect(balances['B'], 10.0);
+      expect(balances['C'], 10.0);
+
+      final debts = calculator.calculateDebts(balances: balances);
+
+      // The cycle collapses to 2 transfers, all from A.
+      expect(debts.length, 2);
+      for (final debt in debts) {
+        expect(debt.fromUserId, 'A');
+      }
+      expect(debts.map((d) => d.toUserId).toSet(), {'B', 'C'});
+      final total = debts.fold<double>(0, (sum, d) => sum + d.amount);
+      expect(total, closeTo(20.0, 0.001));
+    });
+
+    test('perfect 3-user cycle nets to zero and produces no debts', () {
+      // A owes B 10, B owes C 10, C owes A 10 -> everyone nets 0.
+      final debts = calculator.calculateDebts(
+        balances: {'A': 0.0, 'B': 0.0, 'C': 0.0},
+      );
+      expect(debts, isEmpty);
+    });
+
+    test('XOF balances and debts are whole units', () {
+      final expense = makeExpense(
+        amount: 1000,
+        paidBy: 'A',
+        splits: SplitCalculator.calculateEqualSplit(
+          totalAmount: 1000,
+          participantIds: ['A', 'B', 'C'],
+          currency: 'XOF',
+        ),
+      );
+
+      final balances = calculator.calculateGroupBalances(
+        expenses: [expense],
+        settlements: [],
+        memberIds: ['A', 'B', 'C'],
+        currency: 'XOF',
+      );
+
+      for (final value in balances.values) {
+        expect(value, value.roundToDouble(),
+            reason: 'XOF balances must be whole units');
+      }
+
+      final debts = calculator.calculateDebts(
+        balances: balances,
+        currency: 'XOF',
+      );
+      for (final debt in debts) {
+        expect(debt.amount, debt.amount.roundToDouble(),
+            reason: 'XOF debt amounts must be whole units');
+      }
+      final totalDebt = debts.fold<double>(0, (sum, d) => sum + d.amount);
+      // A paid 1000, own share 334 -> is owed 666.
+      expect(totalDebt, 666.0);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -518,6 +606,61 @@ void main() {
       expect(splits[0].userId, 'Alice');
       expect(splits[1].userId, 'Bob');
     });
+
+    test('EUR: 10.00 / 3 sums exactly to 10.00 and validates', () {
+      final splits = SplitCalculator.calculateEqualSplit(
+        totalAmount: 10.00,
+        participantIds: ['A', 'B', 'C'],
+        currency: 'EUR',
+      );
+
+      final total = splits.fold<double>(0, (sum, s) => sum + s.amount);
+      expect(total, closeTo(10.00, 0.001));
+      expect(splits[0].amount, closeTo(3.34, 0.001));
+      expect(splits[1].amount, closeTo(3.33, 0.001));
+      expect(splits[2].amount, closeTo(3.33, 0.001));
+      expect(
+        SplitCalculator.validateSplits(totalAmount: 10.00, splits: splits),
+        true,
+      );
+    });
+
+    test('XOF: 1000 / 3 produces whole units summing exactly to 1000', () {
+      final splits = SplitCalculator.calculateEqualSplit(
+        totalAmount: 1000,
+        participantIds: ['A', 'B', 'C'],
+        currency: 'XOF',
+      );
+
+      for (final split in splits) {
+        expect(split.amount, split.amount.roundToDouble(),
+            reason: 'XOF splits must be whole units');
+      }
+      final total = splits.fold<double>(0, (sum, s) => sum + s.amount);
+      expect(total, 1000.0);
+      // Remainder goes to the first participant: 334 / 333 / 333.
+      expect(splits[0].amount, 334.0);
+      expect(splits[1].amount, 333.0);
+      expect(splits[2].amount, 333.0);
+      expect(
+        SplitCalculator.validateSplits(totalAmount: 1000, splits: splits),
+        true,
+      );
+    });
+
+    test('XOF: 100 / 7 still sums exactly to the total', () {
+      final splits = SplitCalculator.calculateEqualSplit(
+        totalAmount: 100,
+        participantIds: ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+        currency: 'XOF',
+      );
+
+      for (final split in splits) {
+        expect(split.amount, split.amount.roundToDouble());
+      }
+      final total = splits.fold<double>(0, (sum, s) => sum + s.amount);
+      expect(total, 100.0);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -562,6 +705,25 @@ void main() {
       expect(splitMap['B']!.percentage, 30);
       expect(splitMap['A']!.amount, 140.0);
       expect(splitMap['B']!.amount, 60.0);
+    });
+
+    test('XOF: percentage split produces whole units summing to total', () {
+      final splits = SplitCalculator.calculatePercentageSplit(
+        totalAmount: 1000,
+        percentages: {'A': 33.33, 'B': 33.33, 'C': 33.34},
+        currency: 'XOF',
+      );
+
+      for (final split in splits) {
+        expect(split.amount, split.amount.roundToDouble(),
+            reason: 'XOF splits must be whole units');
+      }
+      final total = splits.fold<double>(0, (sum, s) => sum + s.amount);
+      expect(total, 1000.0);
+      expect(
+        SplitCalculator.validateSplits(totalAmount: 1000, splits: splits),
+        true,
+      );
     });
 
     test('0% gives amount 0', () {

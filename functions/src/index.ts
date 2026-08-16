@@ -17,7 +17,9 @@ export const onFriendRequestCreated = onDocumentCreated(
 
     const requestData = snapshot.data();
     const targetUserId = event.params.userId;
-    const senderName = requestData.fromUserName || "Quelqu'un";
+    // The client writes "fromDisplayName"; keep "fromUserName" as a legacy fallback
+    const senderName =
+      requestData.fromDisplayName || requestData.fromUserName || "Quelqu'un";
 
     // Get target user's FCM token
     const targetUserDoc = await db.collection("users").doc(targetUserId).get();
@@ -86,7 +88,9 @@ export const onFriendAcceptedNotification = onDocumentCreated(
     if (notifData.type !== "friend_request_accepted") return;
 
     const targetUserId = event.params.userId;
-    const accepterName = notifData.fromUserName || "Quelqu'un";
+    // The client writes "fromDisplayName"; keep "fromUserName" as a legacy fallback
+    const accepterName =
+      notifData.fromDisplayName || notifData.fromUserName || "Quelqu'un";
 
     // Get target user's FCM token
     const targetUserDoc = await db.collection("users").doc(targetUserId).get();

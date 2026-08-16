@@ -152,12 +152,13 @@ void main() {
       await createUser(userId: 'current-user-id', phoneNumber: '+2250101010101', displayName: 'Me');
       await createUser(userId: 'friend-id', phoneNumber: '+2250707070707');
 
-      // Create an existing pending request
+      // Create an existing pending request (doc id == sender uid)
       await fakeFirestore
           .collection(FirebaseConstants.usersCollection)
           .doc('friend-id')
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .add({
+          .doc('current-user-id')
+          .set({
         'fromUserId': 'current-user-id',
         'fromDisplayName': 'Me',
         'fromPhoneNumber': '+2250101010101',
@@ -217,12 +218,13 @@ void main() {
       await createUser(userId: 'current-user-id', phoneNumber: '+2250101010101', displayName: 'Me');
       await createUser(userId: 'requester-id', phoneNumber: '+2250707070707', displayName: 'Requester');
 
-      // Create a pending request
-      final requestRef = await fakeFirestore
+      // Create a pending request (doc id == sender uid)
+      final requestRef = fakeFirestore
           .collection(FirebaseConstants.usersCollection)
           .doc('current-user-id')
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .add({
+          .doc('requester-id');
+      await requestRef.set({
         'fromUserId': 'requester-id',
         'fromDisplayName': 'Requester',
         'fromPhoneNumber': '+2250707070707',
@@ -261,26 +263,27 @@ void main() {
           .get();
       expect(side2.exists, isTrue);
 
-      // Verify request status updated
-      final updatedRequest = await fakeFirestore
+      // The request is consumed (deleted) by the accept batch
+      final consumedRequest = await fakeFirestore
           .collection(FirebaseConstants.usersCollection)
           .doc('current-user-id')
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .doc(requestRef.id)
+          .doc('requester-id')
           .get();
-      expect(updatedRequest.data()?['status'], 'accepted');
+      expect(consumedRequest.exists, isFalse);
     });
   });
 
   group('FriendsNotifier.declineFriendRequest', () {
-    test('updates request status to declined', () async {
+    test('deletes the request on decline', () async {
       await waitForAuth();
 
-      final requestRef = await fakeFirestore
+      final requestRef = fakeFirestore
           .collection(FirebaseConstants.usersCollection)
           .doc('current-user-id')
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .add({
+          .doc('requester-id');
+      await requestRef.set({
         'fromUserId': 'requester-id',
         'fromDisplayName': 'Requester',
         'fromPhoneNumber': '+2250707070707',
@@ -289,23 +292,33 @@ void main() {
       });
 
       final notifier = container.read(friendsNotifierProvider.notifier);
-      final result = await notifier.declineFriendRequest(requestRef.id);
+      final result = await notifier.declineFriendRequest('requester-id');
 
       expect(result, isTrue);
 
-      final updatedRequest = await fakeFirestore
+      final deletedRequest = await requestRef.get();
+      expect(deletedRequest.exists, isFalse);
+
+      // No friendship must have been created
+      final friendDoc = await fakeFirestore
           .collection(FirebaseConstants.usersCollection)
           .doc('current-user-id')
-          .collection(FirebaseConstants.friendRequestsSubcollection)
-          .doc(requestRef.id)
+          .collection('friends')
+          .doc('requester-id')
           .get();
-      expect(updatedRequest.data()?['status'], 'declined');
+      expect(friendDoc.exists, isFalse);
     });
   });
 
   group('FriendsNotifier.addFriendByQrCode', () {
-    test('adds friend by QR code successfully (direct, no request)', () async {
+    test('sends a friend request via QR code (no direct friendship)', () async {
       await waitForAuth();
+      await createUser(
+        userId: 'current-user-id',
+        phoneNumber: '+2250101010101',
+        displayName: 'Me',
+        qrCode: 'LGJ-00000000-me',
+      );
       await createUser(
         userId: 'qr-friend-id',
         phoneNumber: '+2250808080808',
@@ -318,13 +331,24 @@ void main() {
 
       expect(result, isTrue);
 
+      // No direct friendship: the QR scan sends a request to accept
       final friendDoc = await fakeFirestore
           .collection(FirebaseConstants.usersCollection)
           .doc('current-user-id')
           .collection('friends')
           .doc('qr-friend-id')
           .get();
-      expect(friendDoc.exists, isTrue);
+      expect(friendDoc.exists, isFalse);
+
+      final requestDoc = await fakeFirestore
+          .collection(FirebaseConstants.usersCollection)
+          .doc('qr-friend-id')
+          .collection(FirebaseConstants.friendRequestsSubcollection)
+          .doc('current-user-id')
+          .get();
+      expect(requestDoc.exists, isTrue);
+      expect(requestDoc.data()?['status'], 'pending');
+      expect(requestDoc.data()?['fromUserId'], 'current-user-id');
     });
 
     test('returns false for non-existent QR code', () async {

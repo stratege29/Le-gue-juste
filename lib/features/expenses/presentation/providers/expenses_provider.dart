@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -8,6 +11,7 @@ import '../../domain/entities/expense_entity.dart';
 import '../../data/models/expense_model.dart';
 import '../../../balances/domain/usecases/calculate_balances.dart';
 import '../../../balances/domain/entities/balance_entity.dart';
+import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../settlements/presentation/providers/settlements_provider.dart';
 
 /// Stream of expenses for a group
@@ -22,9 +26,21 @@ final groupExpensesProvider =
       .where(FirebaseConstants.expenseIsDeleted, isEqualTo: false)
       .orderBy(FirebaseConstants.expenseDate, descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => ExpenseModel.fromFirestore(doc, groupId).toEntity())
-          .toList());
+      .map((snapshot) {
+    final expenses = <ExpenseEntity>[];
+    for (final doc in snapshot.docs) {
+      try {
+        expenses.add(ExpenseModel.fromFirestore(doc, groupId).toEntity());
+      } catch (e) {
+        // One malformed doc must not permanently error the stream for
+        // every member: skip it.
+        if (kDebugMode) {
+          debugPrint('Skipping malformed expense doc ${doc.id}: $e');
+        }
+      }
+    }
+    return expenses;
+  });
 });
 
 /// Single expense by ID
@@ -46,47 +62,74 @@ final expenseProvider =
 });
 
 /// Group balances (calculated from expenses and settlements)
+///
+/// Exposed as an [AsyncValue] so loading and error states propagate to the
+/// UI instead of being silently mapped to an empty map — an empty map would
+/// present "no debts" as truth when the data actually failed to load, or
+/// resurrect already-paid debts while settlements are still loading.
 final groupBalancesProvider =
-    Provider.family<Map<String, double>, String>((ref, groupId) {
+    Provider.family<AsyncValue<Map<String, double>>, String>((ref, groupId) {
+  final groupAsync = ref.watch(groupProvider(groupId));
   final expensesAsync = ref.watch(groupExpensesProvider(groupId));
   final settlementsAsync = ref.watch(groupSettlementsProvider(groupId));
+
+  // Propagate the first error, then loading, before computing anything.
+  for (final AsyncValue<Object?> async in [
+    groupAsync,
+    expensesAsync,
+    settlementsAsync,
+  ]) {
+    if (async.hasError) {
+      return AsyncValue.error(
+          async.error!, async.stackTrace ?? StackTrace.current);
+    }
+  }
+  if (groupAsync.isLoading ||
+      expensesAsync.isLoading ||
+      settlementsAsync.isLoading) {
+    return const AsyncValue.loading();
+  }
+
+  final expenses = expensesAsync.valueOrNull ?? const <ExpenseEntity>[];
+  final settlements = settlementsAsync.valueOrNull ?? const <SettlementEntity>[];
+  final currency = groupAsync.valueOrNull?.currency ?? 'XOF';
   final calculator = CalculateBalances();
 
-  return expensesAsync.when(
-    data: (expenses) {
-      final settlements = settlementsAsync.valueOrNull ?? [];
+  // Get all member IDs from expenses and settlements
+  final memberIds = <String>{};
+  for (final expense in expenses) {
+    memberIds.add(expense.paidBy);
+    memberIds.addAll(expense.participantIds);
+  }
+  for (final settlement in settlements) {
+    memberIds.add(settlement.fromUserId);
+    memberIds.add(settlement.toUserId);
+  }
 
-      // Get all member IDs from expenses and settlements
-      final memberIds = <String>{};
-      for (final expense in expenses) {
-        memberIds.add(expense.paidBy);
-        memberIds.addAll(expense.participantIds);
-      }
-      for (final settlement in settlements) {
-        memberIds.add(settlement.fromUserId);
-        memberIds.add(settlement.toUserId);
-      }
-
-      return calculator.calculateGroupBalances(
-        expenses: expenses,
-        settlements: settlements,
-        memberIds: memberIds.toList(),
-      );
-    },
-    loading: () => {},
-    error: (_, __) => {},
-  );
+  return AsyncValue.data(calculator.calculateGroupBalances(
+    expenses: expenses,
+    settlements: settlements,
+    memberIds: memberIds.toList(),
+    currency: currency,
+  ));
 });
 
 /// Group debts (simplified transactions)
+///
+/// Mirrors the loading/error state of [groupBalancesProvider].
 final groupDebtsProvider =
-    Provider.family<List<DebtEntity>, String>((ref, groupId) {
-  final balances = ref.watch(groupBalancesProvider(groupId));
+    Provider.family<AsyncValue<List<DebtEntity>>, String>((ref, groupId) {
+  final balancesAsync = ref.watch(groupBalancesProvider(groupId));
+  final currency =
+      ref.watch(groupProvider(groupId)).valueOrNull?.currency ?? 'XOF';
   final calculator = CalculateBalances();
 
-  return calculator.calculateDebts(
-    balances: balances,
-    groupId: groupId,
+  return balancesAsync.whenData(
+    (balances) => calculator.calculateDebts(
+      balances: balances,
+      groupId: groupId,
+      currency: currency,
+    ),
   );
 });
 
@@ -105,6 +148,12 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<void>> {
 
   ExpensesNotifier(this._firestore, this._ref) : super(const AsyncValue.data(null));
 
+  /// Creates an expense atomically (expense doc + group updatedAt in one
+  /// batch).
+  ///
+  /// [expenseId] is optional: callers that may retry (e.g. after a network
+  /// timeout) should reuse the same id so a retry overwrites the same doc
+  /// instead of creating a duplicate expense.
   Future<String?> createExpense({
     required String groupId,
     required String description,
@@ -115,7 +164,9 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<void>> {
     DateTime? date,
     String? category,
     String currency = 'XOF',
+    String? expenseId,
   }) async {
+    if (state.isLoading) return null; // A save is already in flight.
     state = const AsyncValue.loading();
 
     try {
@@ -126,10 +177,10 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<void>> {
       }
 
       final now = DateTime.now();
-      final expenseId = const Uuid().v4();
+      final id = expenseId ?? const Uuid().v4();
 
       final expense = ExpenseModel(
-        id: expenseId,
+        id: id,
         groupId: groupId,
         description: description,
         amount: amount,
@@ -145,23 +196,29 @@ class ExpensesNotifier extends StateNotifier<AsyncValue<void>> {
         isDeleted: false,
       );
 
-      await _firestore
-          .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .collection(FirebaseConstants.expensesSubcollection)
-          .doc(expenseId)
-          .set(expense.toFirestore());
+      // Batch write: expense doc + group updatedAt atomically (same pattern
+      // as createSettlement/createGroup).
+      final batch = _firestore.batch();
 
-      // Update group's updatedAt
-      await _firestore
+      final groupRef = _firestore
           .collection(FirebaseConstants.groupsCollection)
-          .doc(groupId)
-          .update({
-        FirebaseConstants.updatedAt: Timestamp.now(),
+          .doc(groupId);
+      final expenseRef = groupRef
+          .collection(FirebaseConstants.expensesSubcollection)
+          .doc(id);
+
+      batch.set(expenseRef, expense.toFirestore());
+      batch.update(groupRef, {
+        FirebaseConstants.updatedAt: Timestamp.fromDate(now),
       });
 
+      // Firestore write futures only complete on server ack, so offline
+      // they hang forever. Time out to give the user feedback; retrying
+      // with the same [expenseId] is safe (idempotent set on the same doc).
+      await batch.commit().timeout(const Duration(seconds: 15));
+
       state = const AsyncValue.data(null);
-      return expenseId;
+      return id;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       return null;
@@ -323,6 +380,7 @@ class AddExpenseState {
         return SplitCalculator.calculateEqualSplit(
           totalAmount: amount,
           participantIds: participantIds,
+          currency: currency,
         );
       case SplitType.exact:
         return participantIds.map((id) {
@@ -335,6 +393,7 @@ class AddExpenseState {
         return SplitCalculator.calculatePercentageSplit(
           totalAmount: amount,
           percentages: percentages,
+          currency: currency,
         );
     }
   }

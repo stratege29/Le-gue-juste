@@ -348,7 +348,7 @@ class ProfileScreen extends ConsumerWidget {
     }
     bool isLoading = false;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -505,6 +505,7 @@ class ProfileScreen extends ConsumerWidget {
           );
         },
       ),
-    );
+      // The sheet is the only user of this controller: release it once closed.
+    ).whenComplete(controller.dispose);
   }
 }

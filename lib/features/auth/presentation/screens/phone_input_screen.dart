@@ -91,9 +91,18 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
     final authState = ref.watch(authNotifierProvider);
 
     ref.listen<AuthState>(authNotifierProvider, (previous, next) {
+      // This screen stays mounted beneath the pushed OTP screen and would
+      // otherwise react to OTP-stage events too (duplicate snackbars, double
+      // navigation to profile-setup). Only the topmost route reacts; the
+      // codeSent push below is exempt since pushing OTP is exactly this
+      // screen's job and it is transition-guarded.
+      final isTopmostRoute = ModalRoute.of(context)?.isCurrent ?? true;
+
       // Android auto-verification: user signed in directly, skip OTP screen
       if (next.needsProfileSetup) {
-        context.go(RouteConstants.profileSetup);
+        if (isTopmostRoute) {
+          context.go(RouteConstants.profileSetup);
+        }
         return;
       }
       // Only on the false -> true transition. This screen stays mounted under
@@ -105,7 +114,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen>
           extra: next.phoneNumber,
         );
       }
-      if (next.errorMessage != null) {
+      if (next.errorMessage != null && isTopmostRoute) {
         SnackbarManager.showError(context, next.errorMessage!);
       }
     });

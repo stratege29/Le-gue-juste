@@ -38,12 +38,14 @@ final userFriendsProvider = StreamProvider<List<FriendEntity>>((ref) {
 
     final friendIds = addedAtMap.keys.toList();
 
-    // Batch fetch user docs using whereIn (max 10 per query)
+    // Batch fetch user docs using whereIn (max 10 per query).
+    // The explicit .limit() is required by the Firestore rules on /users list.
     final chunks = _chunk(friendIds, 10);
     final userDocs = await Future.wait(
       chunks.map((chunk) => firestore
           .collection(FirebaseConstants.usersCollection)
           .where(FieldPath.documentId, whereIn: chunk)
+          .limit(10)
           .get()),
     );
 
@@ -126,7 +128,11 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
 
   FriendsNotifier(this._firestore, this._ref) : super(const AsyncValue.data(null));
 
-  /// Add friend directly via QR code (no request needed)
+  /// Send a friend request via QR code (the target must accept it).
+  ///
+  /// Security note: a direct mutual add is not possible client-side because the
+  /// Firestore rules only allow writing into someone else's friends list when
+  /// accepting a real pending request (consent).
   Future<bool> addFriendByQrCode(String qrCode) async {
     state = const AsyncValue.loading();
 
@@ -149,53 +155,7 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
         return false;
       }
 
-      final friendId = userQuery.docs.first.id;
-
-      if (friendId == currentUser.uid) {
-        state = AsyncValue.error('Vous ne pouvez pas vous ajouter vous-même', StackTrace.current);
-        return false;
-      }
-
-      // Check if already friends
-      final existingFriend = await _firestore
-          .collection(FirebaseConstants.usersCollection)
-          .doc(currentUser.uid)
-          .collection('friends')
-          .doc(friendId)
-          .get();
-
-      if (existingFriend.exists) {
-        state = AsyncValue.error('Déjà dans vos amis', StackTrace.current);
-        return false;
-      }
-
-      final now = DateTime.now();
-      final batch = _firestore.batch();
-
-      // Add friend to current user
-      batch.set(
-        _firestore
-            .collection(FirebaseConstants.usersCollection)
-            .doc(currentUser.uid)
-            .collection('friends')
-            .doc(friendId),
-        {'addedAt': Timestamp.fromDate(now)},
-      );
-
-      // Add current user to friend's list (mutual)
-      batch.set(
-        _firestore
-            .collection(FirebaseConstants.usersCollection)
-            .doc(friendId)
-            .collection('friends')
-            .doc(currentUser.uid),
-        {'addedAt': Timestamp.fromDate(now)},
-      );
-
-      await batch.commit();
-
-      state = const AsyncValue.data(null);
-      return true;
+      return _sendRequestToUser(currentUser.uid, userQuery.docs.first.id);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       return false;
@@ -225,10 +185,19 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
         return false;
       }
 
-      final targetDoc = userQuery.docs.first;
-      final targetId = targetDoc.id;
+      return _sendRequestToUser(currentUser.uid, userQuery.docs.first.id);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
 
-      if (targetId == currentUser.uid) {
+  /// Shared logic: create a friend request from [currentUserId] to [targetId].
+  /// Request docs use the sender's uid as document id (enforced by the rules),
+  /// which makes duplicate checks simple doc reads.
+  Future<bool> _sendRequestToUser(String currentUserId, String targetId) async {
+    try {
+      if (targetId == currentUserId) {
         state = AsyncValue.error('Vous ne pouvez pas vous ajouter vous-même', StackTrace.current);
         return false;
       }
@@ -236,7 +205,7 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
       // Check if already friends
       final existingFriend = await _firestore
           .collection(FirebaseConstants.usersCollection)
-          .doc(currentUser.uid)
+          .doc(currentUserId)
           .collection('friends')
           .doc(targetId)
           .get();
@@ -251,12 +220,10 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
           .collection(FirebaseConstants.usersCollection)
           .doc(targetId)
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .where('fromUserId', isEqualTo: currentUser.uid)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
+          .doc(currentUserId)
           .get();
 
-      if (existingRequest.docs.isNotEmpty) {
+      if (existingRequest.exists) {
         state = AsyncValue.error('Demande déjà envoyée', StackTrace.current);
         return false;
       }
@@ -264,21 +231,19 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
       // Check if there's a cross-request (they already sent me a request)
       final crossRequest = await _firestore
           .collection(FirebaseConstants.usersCollection)
-          .doc(currentUser.uid)
+          .doc(currentUserId)
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .where('fromUserId', isEqualTo: targetId)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
+          .doc(targetId)
           .get();
 
-      if (crossRequest.docs.isNotEmpty) {
+      if (crossRequest.exists &&
+          (crossRequest.data()?['status'] as String?) == 'pending') {
         // Auto-accept: both users want to be friends
-        final crossRequestDoc = crossRequest.docs.first;
-        final crossRequestData = crossRequest.docs.first.data();
         await _acceptFriendRequestInternal(
-          requestId: crossRequestDoc.id,
+          requestId: crossRequest.id,
           fromUserId: targetId,
-          fromDisplayName: crossRequestData['fromDisplayName'] as String? ?? 'Utilisateur',
+          fromDisplayName:
+              crossRequest.data()?['fromDisplayName'] as String? ?? 'Utilisateur',
         );
         state = const AsyncValue.data(null);
         return true;
@@ -287,7 +252,7 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
       // Get current user data for the request
       final currentUserDoc = await _firestore
           .collection(FirebaseConstants.usersCollection)
-          .doc(currentUser.uid)
+          .doc(currentUserId)
           .get();
       final currentUserData = currentUserDoc.data() ?? {};
       final myDisplayName = currentUserData[FirebaseConstants.displayName] as String? ?? 'Utilisateur';
@@ -296,15 +261,15 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
       final now = DateTime.now();
       final batch = _firestore.batch();
 
-      // Create friend request in target's subcollection
+      // Create friend request in target's subcollection (doc id == my uid)
       final requestRef = _firestore
           .collection(FirebaseConstants.usersCollection)
           .doc(targetId)
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .doc();
+          .doc(currentUserId);
 
       batch.set(requestRef, {
-        'fromUserId': currentUser.uid,
+        'fromUserId': currentUserId,
         'fromDisplayName': myDisplayName,
         'fromPhoneNumber': myPhoneNumber,
         'status': 'pending',
@@ -322,7 +287,7 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
         'type': FirebaseConstants.friendRequestType,
         'title': 'Demande d\'ami',
         'body': '$myDisplayName souhaite vous ajouter comme ami',
-        'fromUserId': currentUser.uid,
+        'fromUserId': currentUserId,
         'requestId': requestRef.id,
         'createdAt': Timestamp.fromDate(now),
         'isRead': false,
@@ -392,14 +357,15 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
       {'addedAt': Timestamp.fromDate(now)},
     );
 
-    // Update request status to accepted
-    batch.update(
+    // Consume (delete) the request. The rules require the same batch to delete
+    // the pending request in order to authorize writing into the sender's
+    // friends list. Request docs use the sender's uid as id.
+    batch.delete(
       _firestore
           .collection(FirebaseConstants.usersCollection)
           .doc(currentUser.uid)
           .collection(FirebaseConstants.friendRequestsSubcollection)
-          .doc(requestId),
-      {'status': 'accepted'},
+          .doc(fromUserId),
     );
 
     // Send notification to the requester that their request was accepted
@@ -414,6 +380,7 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
       'title': 'Demande acceptée',
       'body': '$myDisplayName a accepté votre demande d\'ami',
       'fromUserId': currentUser.uid,
+      'fromDisplayName': myDisplayName,
       'createdAt': Timestamp.fromDate(now),
       'isRead': false,
     });
@@ -448,14 +415,14 @@ class FriendsNotifier extends StateNotifier<AsyncValue<void>> {
 
       final batch = _firestore.batch();
 
-      // Update request status to declined
-      batch.update(
+      // Delete the request (requests are immutable in the rules;
+      // declining simply consumes them)
+      batch.delete(
         _firestore
             .collection(FirebaseConstants.usersCollection)
             .doc(currentUser.uid)
             .collection(FirebaseConstants.friendRequestsSubcollection)
             .doc(requestId),
-        {'status': 'declined'},
       );
 
       // Delete the associated notification

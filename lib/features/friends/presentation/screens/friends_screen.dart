@@ -286,9 +286,13 @@ class FriendsScreen extends ConsumerWidget {
                 final success = await ref.read(friendsNotifierProvider.notifier).addFriendByQrCode(code);
                 if (context.mounted) {
                   if (success) {
-                    SnackbarManager.showSuccess(context, 'Ami ajouté !');
+                    SnackbarManager.showSuccess(context, 'Demande d\'ami envoyée !');
                   } else {
-                    SnackbarManager.showError(context, 'Erreur lors de l\'ajout');
+                    final errorState = ref.read(friendsNotifierProvider);
+                    final errorMsg = errorState.hasError
+                        ? errorState.error.toString()
+                        : 'Erreur lors de l\'envoi';
+                    SnackbarManager.showError(context, errorMsg);
                   }
                 }
               }

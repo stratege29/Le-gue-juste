@@ -43,7 +43,7 @@ class _DeepLinkFriendScreenState extends ConsumerState<DeepLinkFriendScreen> {
           _isLoading = false;
           _success = result;
           if (!result) {
-            _errorMessage = 'Impossible d\'ajouter cet ami. '
+            _errorMessage = 'Impossible d\'envoyer la demande d\'ami. '
                 'Le code est peut-être invalide ou vous êtes déjà amis.';
           }
         });
@@ -105,7 +105,7 @@ class _DeepLinkFriendScreenState extends ConsumerState<DeepLinkFriendScreen> {
         ),
         const SizedBox(height: 24),
         Text(
-          'Ajout en cours...',
+          'Envoi de la demande...',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -140,7 +140,7 @@ class _DeepLinkFriendScreenState extends ConsumerState<DeepLinkFriendScreen> {
         ),
         const SizedBox(height: 24),
         Text(
-          'Ami ajouté !',
+          'Demande d\'ami envoyée !',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.success,

@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/currency_format.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -14,6 +15,8 @@ import '../providers/groups_provider.dart';
 import '../../../expenses/presentation/providers/expenses_provider.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../../balances/domain/entities/balance_entity.dart';
+import '../../../settlements/presentation/providers/settlements_provider.dart'
+    show groupSettlementsProvider;
 
 class GroupDetailScreen extends ConsumerWidget {
   final String groupId;
@@ -27,8 +30,8 @@ class GroupDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groupAsync = ref.watch(groupProvider(groupId));
     final expensesAsync = ref.watch(groupExpensesProvider(groupId));
-    final balances = ref.watch(groupBalancesProvider(groupId));
-    final debts = ref.watch(groupDebtsProvider(groupId));
+    final balancesAsync = ref.watch(groupBalancesProvider(groupId));
+    final debtsAsync = ref.watch(groupDebtsProvider(groupId));
     final currentAuthUser = ref.watch(authStateProvider);
     final memberNamesAsync = ref.watch(groupMemberNamesProvider(groupId));
 
@@ -43,8 +46,11 @@ class GroupDetailScreen extends ConsumerWidget {
 
         // Use Firebase Auth UID directly for balance lookup (more reliable)
         final authUid = currentAuthUser.valueOrNull?.uid;
-        final userBalance = authUid != null ? (balances[authUid] ?? 0.0) : 0.0;
-        final isBalancesLoading = expensesAsync.isLoading || authUid == null;
+        final userBalance = authUid != null
+            ? (balancesAsync.valueOrNull?[authUid] ?? 0.0)
+            : 0.0;
+        final debts = debtsAsync.valueOrNull ?? const <DebtEntity>[];
+        final isBalancesLoading = balancesAsync.isLoading || authUid == null;
         final currencySymbol = AppConstants.currencySymbols[group.currency] ?? group.currency;
         final memberNames = memberNamesAsync.valueOrNull ?? {};
 
@@ -86,9 +92,15 @@ class GroupDetailScreen extends ConsumerWidget {
                 userBalance,
                 debts,
                 currencySymbol,
+                group.currency,
                 memberNames,
                 authUid,
                 isBalancesLoading,
+                hasError: balancesAsync.hasError,
+                onRetry: () {
+                  ref.invalidate(groupExpensesProvider(groupId));
+                  ref.invalidate(groupSettlementsProvider(groupId));
+                },
               ),
               // Expenses list
               Expanded(
@@ -160,14 +172,50 @@ class GroupDetailScreen extends ConsumerWidget {
     double userBalance,
     List<DebtEntity> debts,
     String currencySymbol,
+    String currency,
     Map<String, String> memberNames,
     String? currentUserId,
-    bool isLoading,
-  ) {
+    bool isLoading, {
+    bool hasError = false,
+    VoidCallback? onRetry,
+  }) {
+    // Never present fabricated "all settled" data when balances failed to
+    // load: show an explicit error with a retry action.
+    if (hasError) {
+      return Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error),
+            const SizedBox(height: 8),
+            Text(
+              'Impossible de charger les soldes',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (isLoading) {
       return const SkeletonSummaryCard();
     }
 
+    final decimalDigits = CurrencyFormat.decimalDigits(currency);
     final isOwed = userBalance > 0.01;
     final owes = userBalance < -0.01;
 
@@ -205,7 +253,7 @@ class GroupDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            NumberFormat.currency(symbol: currencySymbol, decimalDigits: 2).format(userBalance.abs()),
+            NumberFormat.currency(symbol: currencySymbol, decimalDigits: decimalDigits).format(userBalance.abs()),
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -220,7 +268,7 @@ class GroupDetailScreen extends ConsumerWidget {
               final isUserDebtor = debt.fromUserId == currentUserId;
               final otherUserId = isUserDebtor ? debt.toUserId : debt.fromUserId;
               final otherUserName = memberNames[otherUserId] ?? 'Utilisateur';
-              final amount = NumberFormat.currency(symbol: currencySymbol, decimalDigits: 2).format(debt.amount);
+              final amount = NumberFormat.currency(symbol: currencySymbol, decimalDigits: decimalDigits).format(debt.amount);
 
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -498,11 +546,46 @@ class GroupDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 
   void _showLeaveGroupConfirm(BuildContext context, WidgetRef ref, String groupId) {
     final currentUser = ref.read(currentUserProvider).valueOrNull;
+    final authUid = ref.read(authStateProvider).valueOrNull?.uid;
+
+    // A member who leaves with a non-zero balance can never see or settle
+    // that debt again (security rules deny reads to non-members): block
+    // leaving until the balance is settled.
+    final balancesAsync = ref.read(groupBalancesProvider(groupId));
+    if (balancesAsync.isLoading || balancesAsync.hasError || authUid == null) {
+      SnackbarManager.showError(
+        context,
+        'Impossible de vérifier votre solde pour le moment. Réessayez dans un instant.',
+      );
+      return;
+    }
+    final userBalance = balancesAsync.valueOrNull?[authUid] ?? 0.0;
+    if (userBalance.abs() > 0.01) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Solde non réglé'),
+          content: Text(
+            userBalance < 0
+                ? 'Vous ne pouvez pas quitter ce gazoil tant que vous avez des dettes en cours. Remboursez d\'abord vos dettes.'
+                : 'Vous ne pouvez pas quitter ce gazoil tant qu\'on vous doit de l\'argent. Faites-vous d\'abord rembourser.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -591,7 +674,7 @@ class _ExpenseCard extends ConsumerWidget {
     final paidByName = memberNames[expense.paidBy] ?? 'Utilisateur';
     final formattedAmount = NumberFormat.currency(
       symbol: currencySymbol,
-      decimalDigits: 0,
+      decimalDigits: CurrencyFormat.decimalDigits(expense.currency),
     ).format(expense.amount);
 
     final currentUserId = ref.watch(authStateProvider).valueOrNull?.uid;

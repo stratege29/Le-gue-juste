@@ -95,9 +95,11 @@ class _ContactsPickerScreenState extends ConsumerState<ContactsPickerScreen> {
     final userMap = <String, String>{}; // normalizedNumber -> userId
 
     for (final chunk in chunks) {
+      // The explicit .limit() is required by the Firestore rules on /users list.
       final query = await firestore
           .collection(FirebaseConstants.usersCollection)
           .where(FirebaseConstants.phoneNumber, whereIn: chunk)
+          .limit(10)
           .get();
 
       for (final doc in query.docs) {

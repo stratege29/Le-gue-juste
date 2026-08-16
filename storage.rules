@@ -1,18 +1,26 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /avatars/{userId}.jpg {
+    // Avatars are stored as {uid}.jpg (a rules wildcard must span a whole
+    // path segment, so the uid is checked against the file name)
+    match /avatars/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
-                   && request.auth.uid == userId
+                   && fileName == request.auth.uid + '.jpg'
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Group files: restricted to group members (checked against Firestore)
     match /groups/{groupId}/{allPaths=**} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+                  && firestore.get(/databases/(default)/documents/groups/$(groupId))
+                      .data.memberIds.hasAny([request.auth.uid]);
       allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024;
+                   && firestore.get(/databases/(default)/documents/groups/$(groupId))
+                       .data.memberIds.hasAny([request.auth.uid])
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
     }
   }
 }
