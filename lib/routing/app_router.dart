@@ -36,16 +36,23 @@ final splashMinTimeProvider = FutureProvider<bool>((ref) async {
 });
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final currentUser = ref.watch(currentUserProvider);
-  final firebaseAuth = ref.watch(firebaseAuthProvider);
-  final splashMinTime = ref.watch(splashMinTimeProvider);
+  // IMPORTANT: this provider must never rebuild (no ref.watch here). Recreating
+  // the GoRouter resets navigation to /splash and leaks the old router — it was
+  // the root cause of past navigation races. State changes are delivered to the
+  // stable router instance through [refreshNotifier] instead, and the redirect
+  // callback reads fresh values with ref.read.
+  final refreshNotifier = RouterRefreshNotifier(ref);
+  ref.onDispose(refreshNotifier.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: RouteConstants.splash,
     debugLogDiagnostics: kDebugMode,
-    refreshListenable: GoRouterRefreshStream(firebaseAuth.authStateChanges()),
+    refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
+      final currentUser = ref.read(currentUserProvider);
+      final splashMinTime = ref.read(splashMinTimeProvider);
+
       final isSplash = state.matchedLocation == RouteConstants.splash;
 
       // Stay on splash until minimum display time has elapsed
@@ -60,14 +67,25 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isLoggedIn = authState.valueOrNull != null;
 
-      // If logged in but profile still loading, stay on splash
-      if (isLoggedIn && currentUser.isLoading) {
+      // If logged in but profile still loading with no usable cached value,
+      // stay on splash. A refresh that still holds previous data (e.g. after
+      // editing the display name, which invalidates currentUserProvider) must
+      // NOT bounce the user through /splash.
+      if (isLoggedIn && currentUser.isLoading && currentUser.valueOrNull == null) {
         return isSplash ? null : RouteConstants.splash;
       }
 
       final isLoggingIn = state.matchedLocation.startsWith('/auth');
       final isProfileSetup = state.matchedLocation == RouteConstants.profileSetup;
       final hasProfile = currentUser.valueOrNull != null;
+
+      // Profile fetch FAILED (e.g. flaky network) with no cached value: we do
+      // not know whether the profile exists, so never route to profile-setup —
+      // that flow would regenerate the user's QR code. Stay on splash; the
+      // refresh notifier schedules a retry of currentUserProvider.
+      if (isLoggedIn && currentUser.hasError && !hasProfile) {
+        return isSplash ? null : RouteConstants.splash;
+      }
 
       // If on splash, redirect based on resolved auth state
       if (isSplash) {
@@ -284,22 +302,54 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
     errorBuilder: (context, state) => ErrorScreen(error: state.error),
   );
+  ref.onDispose(router.dispose);
+
+  return router;
 });
 
-/// Helper class to refresh GoRouter when auth state changes
-class GoRouterRefreshStream extends ChangeNotifier {
-  late final StreamSubscription<dynamic> _subscription;
-
-  GoRouterRefreshStream(Stream<dynamic> stream) {
-    notifyListeners();
-    _subscription = stream.asBroadcastStream().listen((_) {
-      notifyListeners();
-    });
+/// Notifies the (single, stable) GoRouter that its redirect must re-run
+/// whenever auth state, the current user profile, or the splash minimum
+/// display timer changes.
+///
+/// Also owns the retry loop for a failed profile fetch: an AsyncError from
+/// [currentUserProvider] must not strand the user on splash forever, so the
+/// provider is re-fetched after a short delay until it resolves.
+class RouterRefreshNotifier extends ChangeNotifier {
+  RouterRefreshNotifier(this._ref) {
+    _ref.listen<AsyncValue<Object?>>(
+      authStateProvider,
+      (_, _) => notifyListeners(),
+    );
+    _ref.listen<AsyncValue<Object?>>(
+      currentUserProvider,
+      (_, next) {
+        // Genuine fetch failure with no usable cached value: schedule a retry.
+        // (An error that still carries a previous value keeps working data and
+        // needs no retry-driven navigation.)
+        if (next.hasError && !next.isLoading && next.valueOrNull == null) {
+          _profileRetryTimer?.cancel();
+          _profileRetryTimer = Timer(const Duration(seconds: 3), () {
+            if (_disposed) return;
+            _ref.invalidate(currentUserProvider);
+          });
+        }
+        notifyListeners();
+      },
+    );
+    _ref.listen<AsyncValue<Object?>>(
+      splashMinTimeProvider,
+      (_, _) => notifyListeners(),
+    );
   }
+
+  final Ref _ref;
+  Timer? _profileRetryTimer;
+  bool _disposed = false;
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _disposed = true;
+    _profileRetryTimer?.cancel();
     super.dispose();
   }
 }
