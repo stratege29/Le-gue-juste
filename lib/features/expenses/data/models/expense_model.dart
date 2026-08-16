@@ -36,47 +36,68 @@ class ExpenseModel {
     this.isDeleted = false,
   });
 
+  /// Tolerant parsing: fields that can safely default do so, so one odd
+  /// field never breaks the whole expense stream for every group member.
+  /// Truly irrecoverable docs (missing amount or payer) throw a
+  /// [FormatException] — callers should catch it and SKIP the doc instead
+  /// of letting the error kill the stream.
   factory ExpenseModel.fromFirestore(DocumentSnapshot doc, String groupId) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
 
     // Parse splits from map - handle both old format (just numbers) and new format (map with amount/percentage/isPaid)
     final splitsData = data['splits'] as Map<String, dynamic>? ?? {};
-    final splits = splitsData.entries.map((entry) {
+    final splits = <ExpenseSplitModel>[];
+    for (final entry in splitsData.entries) {
       // Check if value is a number (old format) or a map (new format)
       if (entry.value is num) {
         // Old format: just a number representing the amount
-        return ExpenseSplitModel(
+        splits.add(ExpenseSplitModel(
           userId: entry.key,
           amount: (entry.value as num).toDouble(),
           percentage: null,
           isPaid: false,
-        );
-      } else {
+        ));
+      } else if (entry.value is Map) {
         // New format: map with amount, percentage, isPaid
-        final splitData = entry.value as Map<String, dynamic>;
-        return ExpenseSplitModel(
+        final splitData = Map<String, dynamic>.from(entry.value as Map);
+        final amount = (splitData['amount'] as num?)?.toDouble();
+        // A split without an amount is meaningless: skip it rather than
+        // silently inventing a value.
+        if (amount == null) continue;
+        splits.add(ExpenseSplitModel(
           userId: entry.key,
-          amount: (splitData['amount'] as num).toDouble(),
+          amount: amount,
           percentage: (splitData['percentage'] as num?)?.toDouble(),
           isPaid: splitData['isPaid'] as bool? ?? false,
-        );
+        ));
       }
-    }).toList();
+      // Anything else (null, string...) is malformed: skip the entry.
+    }
+
+    final amount = (data['amount'] as num?)?.toDouble();
+    final paidBy = data['paidBy'] as String?;
+    if (amount == null || paidBy == null || paidBy.isEmpty) {
+      throw FormatException(
+          'Malformed expense doc ${doc.id}: missing amount or paidBy');
+    }
+
+    final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ??
+        DateTime.fromMillisecondsSinceEpoch(0);
 
     return ExpenseModel(
       id: doc.id,
       groupId: groupId,
-      description: data['description'] as String,
-      amount: (data['amount'] as num).toDouble(),
+      description: data['description'] as String? ?? '',
+      amount: amount,
       currency: data['currency'] as String? ?? 'EUR',
-      paidBy: data['paidBy'] as String,
-      createdBy: data['createdBy'] as String,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-      date: (data['date'] as Timestamp).toDate(),
+      paidBy: paidBy,
+      createdBy: data['createdBy'] as String? ?? paidBy,
+      createdAt: createdAt,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? createdAt,
+      date: (data['date'] as Timestamp?)?.toDate() ?? createdAt,
       category: data['category'] as String?,
       imageUrl: data['imageUrl'] as String?,
-      splitType: data['splitType'] as String,
+      splitType: data['splitType'] as String? ?? SplitType.equal.name,
       splits: splits,
       isDeleted: data['isDeleted'] as bool? ?? false,
     );
@@ -124,7 +145,11 @@ class ExpenseModel {
       date: date,
       category: category,
       imageUrl: imageUrl,
-      splitType: SplitType.values.firstWhere((e) => e.name == splitType),
+      // Unknown/legacy split type values must not crash: fall back to equal.
+      splitType: SplitType.values.firstWhere(
+        (e) => e.name == splitType,
+        orElse: () => SplitType.equal,
+      ),
       splits: splits.map((s) => s.toEntity()).toList(),
       isDeleted: isDeleted,
     );

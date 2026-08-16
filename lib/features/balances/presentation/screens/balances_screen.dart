@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/firebase_constants.dart';
 import '../../../../core/services/wave_service.dart';
+import '../../../../core/utils/currency_format.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/snackbar_manager.dart';
 import '../../../../core/widgets/widgets.dart';
@@ -42,14 +43,36 @@ class BalancesScreen extends ConsumerWidget {
             return const SkeletonScreen(itemCount: 3);
           }
 
-          // Check if any expenses are still loading
+          // Balances must be fully loaded before anything is displayed:
+          // showing fabricated empty data on error would present wrong
+          // financial information as truth.
           bool isLoading = false;
+          bool hasError = false;
           for (final group in groups) {
-            final expensesAsync = ref.watch(groupExpensesProvider(group.id));
-            if (expensesAsync.isLoading) {
-              isLoading = true;
+            final balancesAsync = ref.watch(groupBalancesProvider(group.id));
+            if (balancesAsync.hasError) {
+              hasError = true;
               break;
             }
+            if (balancesAsync.isLoading) {
+              isLoading = true;
+            }
+          }
+
+          if (hasError) {
+            return EmptyStateWidget(
+              icon: Icons.error_outline,
+              title: 'Une erreur est survenue',
+              description: 'Impossible de charger vos soldes',
+              actionLabel: 'Réessayer',
+              onAction: () {
+                for (final group in groups) {
+                  ref.invalidate(groupExpensesProvider(group.id));
+                  ref.invalidate(groupSettlementsProvider(group.id));
+                }
+              },
+              iconColor: AppColors.error,
+            );
           }
 
           if (isLoading) {
@@ -61,7 +84,8 @@ class BalancesScreen extends ConsumerWidget {
           final groupBalances = <_GroupBalanceInfo>[];
 
           for (final group in groups) {
-            final balances = ref.watch(groupBalancesProvider(group.id));
+            final balances =
+                ref.watch(groupBalancesProvider(group.id)).valueOrNull ?? {};
             final userBalance = balances[userId] ?? 0.0;
             totalsByCurrency[group.currency] =
                 (totalsByCurrency[group.currency] ?? 0) + userBalance;
@@ -160,11 +184,13 @@ class BalancesScreen extends ConsumerWidget {
         final isPositive = info.balance > 0;
         final formattedAmount = NumberFormat.currency(
           symbol: info.currencySymbol,
-          decimalDigits: 2,
+          decimalDigits: CurrencyFormat.decimalDigits(info.currency),
         ).format(info.balance.abs());
 
-        // Get debts for this group
-        final debts = ref.watch(groupDebtsProvider(info.groupId));
+        // Get debts for this group (loading/error handled by the caller
+        // before this list is built).
+        final debts =
+            ref.watch(groupDebtsProvider(info.groupId)).valueOrNull ?? [];
         final memberNames = ref.watch(groupMemberNamesProvider(info.groupId)).valueOrNull ?? {};
 
         // Filter debts relevant to current user
@@ -223,7 +249,8 @@ class BalancesScreen extends ConsumerWidget {
                           final otherUserName = memberNames[otherUserId] ?? 'Utilisateur';
                           final amount = NumberFormat.currency(
                             symbol: info.currencySymbol,
-                            decimalDigits: 2,
+                            decimalDigits:
+                                CurrencyFormat.decimalDigits(info.currency),
                           ).format(debt.amount);
 
                           return ListTile(
@@ -342,9 +369,14 @@ class BalancesScreen extends ConsumerWidget {
       return;
     }
 
+    // Wave deep links only accept whole integer amounts (Wave operates on
+    // XOF, a zero-decimal currency). Round ONCE and use that same value
+    // for the Wave request AND the recorded settlement, so the ledger
+    // matches what was actually requested in Wave.
+    final waveAmount = amount.round();
     final launched = await WaveService.launchWavePayment(
       phoneNumber: phoneNumber,
-      amount: amount.round(),
+      amount: waveAmount,
     );
 
     if (!context.mounted) return;
@@ -383,7 +415,7 @@ class BalancesScreen extends ConsumerWidget {
       groupId: groupId,
       fromUserId: fromUserId,
       toUserId: toUserId,
-      amount: amount,
+      amount: waveAmount.toDouble(),
       currency: currency,
       paymentMethod: PaymentMethod.wave,
     );
@@ -451,28 +483,34 @@ class BalancesScreen extends ConsumerWidget {
     required String currency,
     PaymentMethod paymentMethod = PaymentMethod.manual,
   }) async {
-    try {
-      await ref.read(settlementsNotifierProvider.notifier).createSettlement(
-        groupId: groupId,
-        fromUserId: fromUserId,
-        toUserId: toUserId,
-        amount: amount,
-        currency: currency,
-        paymentMethod: paymentMethod,
+    // createSettlement catches internally and reports success via its
+    // return value: branch on it, never assume success.
+    final success =
+        await ref.read(settlementsNotifierProvider.notifier).createSettlement(
+      groupId: groupId,
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+      amount: amount,
+      currency: currency,
+      paymentMethod: paymentMethod,
+    );
+
+    if (!context.mounted) return;
+
+    if (success) {
+      HapticFeedback.mediumImpact();
+      SnackbarManager.showSuccess(
+        context,
+        paymentMethod == PaymentMethod.wave
+            ? 'Paiement Wave enregistré !'
+            : 'Dette réglée !',
       );
-      if (context.mounted) {
-        HapticFeedback.mediumImpact();
-        SnackbarManager.showSuccess(
-          context,
-          paymentMethod == PaymentMethod.wave
-              ? 'Paiement Wave enregistré !'
-              : 'Dette réglée !',
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        SnackbarManager.showError(context, 'Erreur: $e');
-      }
+    } else {
+      HapticFeedback.heavyImpact();
+      SnackbarManager.showError(
+        context,
+        'Erreur lors de l\'enregistrement du règlement. Réessayez.',
+      );
     }
   }
 }

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/utils/currency_format.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -97,15 +98,31 @@ class _GroupCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = ref.watch(currentUserProvider);
-    final balances = ref.watch(groupBalancesProvider(group.id));
-    final userBalance = balances[currentUser.valueOrNull?.id] ?? 0.0;
+    final balancesAsync = ref.watch(groupBalancesProvider(group.id));
+    final balancesUnavailable =
+        balancesAsync.hasError || balancesAsync.isLoading;
+    final userBalance =
+        balancesAsync.valueOrNull?[currentUser.valueOrNull?.id] ?? 0.0;
     final currencySymbol = AppConstants.currencySymbols[group.currency] ?? group.currency;
 
-    final isOwed = userBalance > 0.01;
-    final owes = userBalance < -0.01;
+    final isOwed = !balancesUnavailable && userBalance > 0.01;
+    final owes = !balancesUnavailable && userBalance < -0.01;
     final balanceColor = isOwed ? AppColors.success : owes ? AppColors.error : AppColors.settled;
-    final balanceLabel = isOwed ? 'on vous doit' : owes ? 'vous devez' : 'équilibré';
-    final formattedBalance = NumberFormat.currency(symbol: currencySymbol, decimalDigits: 0).format(userBalance.abs());
+    // Never label an errored/loading balance as "équilibré": that would
+    // present fabricated financial data as truth.
+    final balanceLabel = balancesUnavailable
+        ? (balancesAsync.hasError ? 'solde indisponible' : 'chargement...')
+        : isOwed
+            ? 'on vous doit'
+            : owes
+                ? 'vous devez'
+                : 'équilibré';
+    final formattedBalance = balancesUnavailable
+        ? '—'
+        : NumberFormat.currency(
+                symbol: currencySymbol,
+                decimalDigits: CurrencyFormat.decimalDigits(group.currency))
+            .format(userBalance.abs());
 
     return Semantics(
       label: '${group.name}, ${group.memberCount} membres, $balanceLabel $formattedBalance',

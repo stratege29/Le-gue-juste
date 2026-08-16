@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/firebase_constants.dart';
 import '../../../../core/services/wave_service.dart';
+import '../../../../core/utils/currency_format.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -30,12 +30,13 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
   @override
   Widget build(BuildContext context) {
     final groupAsync = ref.watch(groupProvider(widget.groupId));
-    final debts = ref.watch(groupDebtsProvider(widget.groupId));
+    final debtsAsync = ref.watch(groupDebtsProvider(widget.groupId));
     final memberNamesAsync = ref.watch(groupMemberNamesProvider(widget.groupId));
     final currentUser = ref.watch(currentUserProvider);
 
     // Single consolidated loading check across all async providers
     final isLoading = groupAsync.isLoading ||
+        debtsAsync.isLoading ||
         memberNamesAsync.isLoading ||
         currentUser.isLoading;
 
@@ -55,6 +56,23 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                 if (user == null) {
                   return const Center(child: Text('Non connecté'));
                 }
+
+                // A debts error must never be shown as "nothing to settle":
+                // surface it with a retry instead of fabricated empty data.
+                if (debtsAsync.hasError) {
+                  return EmptyStateWidget(
+                    icon: Icons.error_outline,
+                    title: 'Une erreur est survenue',
+                    description: 'Impossible de charger les remboursements',
+                    actionLabel: 'Réessayer',
+                    onAction: () {
+                      ref.invalidate(groupExpensesProvider(widget.groupId));
+                      ref.invalidate(groupSettlementsProvider(widget.groupId));
+                    },
+                    iconColor: AppColors.error,
+                  );
+                }
+                final debts = debtsAsync.valueOrNull ?? const <DebtEntity>[];
 
                 final memberNames = memberNamesAsync.valueOrNull ?? {};
                 final currencySymbol =
@@ -121,7 +139,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                               context,
                               debt,
                               memberNames,
-                              currencySymbol,
+                              group.currency,
                               user.id,
                               isSelected,
                             );
@@ -152,7 +170,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     BuildContext context,
     DebtEntity debt,
     Map<String, String> memberNames,
-    String currencySymbol,
+    String currency,
     String currentUserId,
     bool isSelected,
   ) {
@@ -160,8 +178,8 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     final otherUserId = isOwing ? debt.toUserId : debt.fromUserId;
     final otherUserName = memberNames[otherUserId] ?? 'Utilisateur';
 
-    final formattedAmount =
-        '$currencySymbol${NumberFormat('#,##0').format(debt.amount)}';
+    // Currency-aware decimals: whole units for XOF, 2 decimals for EUR...
+    final formattedAmount = CurrencyFormat.format(debt.amount, currency);
 
     return Semantics(
       label: isOwing
@@ -321,10 +339,14 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
       return;
     }
 
-    final amount = debt.amount.round();
+    // Wave deep links only accept whole integer amounts (Wave operates on
+    // XOF, a zero-decimal currency). Round ONCE and use that same value
+    // for the Wave request AND the recorded settlement, so the ledger
+    // matches what was actually requested in Wave.
+    final waveAmount = debt.amount.round();
     final launched = await WaveService.launchWavePayment(
       phoneNumber: phoneNumber,
-      amount: amount,
+      amount: waveAmount,
     );
 
     if (!context.mounted) return;
@@ -372,7 +394,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
           groupId: widget.groupId,
           fromUserId: debt.fromUserId,
           toUserId: debt.toUserId,
-          amount: debt.amount,
+          amount: waveAmount.toDouble(),
           currency: currency,
           note: 'Paiement Wave',
           paymentMethod: PaymentMethod.wave,
@@ -416,13 +438,12 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     final otherUserId = isOwing ? debt.toUserId : debt.fromUserId;
     final otherUserName =
         memberNames.valueOrNull?[otherUserId] ?? 'Utilisateur';
-    final currencySymbol = groupAsync.valueOrNull != null
-        ? AppConstants.currencySymbols[groupAsync.valueOrNull!.currency] ??
-            groupAsync.valueOrNull!.currency
-        : 'EUR';
+    final groupCurrency = groupAsync.valueOrNull?.currency ?? 'EUR';
+    final currencySymbol =
+        AppConstants.currencySymbols[groupCurrency] ?? groupCurrency;
 
-    final amountController =
-        TextEditingController(text: debt.amount.toStringAsFixed(2));
+    final amountController = TextEditingController(
+        text: CurrencyFormat.forInput(debt.amount, groupCurrency));
     final noteController = TextEditingController();
 
     showDialog(
@@ -533,7 +554,12 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      // The controllers are only read before the dialog is popped, so it is
+      // safe (and required, to avoid leaks) to dispose them once it closes.
+      amountController.dispose();
+      noteController.dispose();
+    });
   }
 
 }

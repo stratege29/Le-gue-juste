@@ -26,17 +26,22 @@ class GroupModel {
     this.simplifyDebts = true,
   });
 
+  /// Tolerant parsing: a single malformed field must not break the groups
+  /// stream for every member, so every field has a safe default.
   factory GroupModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ??
+        DateTime.fromMillisecondsSinceEpoch(0);
     return GroupModel(
       id: doc.id,
-      name: data['name'] as String,
+      name: data['name'] as String? ?? 'Gazoil',
       description: data['description'] as String?,
       imageUrl: data['imageUrl'] as String?,
-      createdBy: data['createdBy'] as String,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-      memberIds: List<String>.from(data['memberIds'] ?? []),
+      createdBy: data['createdBy'] as String? ?? '',
+      createdAt: createdAt,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? createdAt,
+      memberIds: (data['memberIds'] as List?)?.whereType<String>().toList() ??
+          <String>[],
       currency: data['currency'] as String? ?? 'EUR',
       simplifyDebts: data['simplifyDebts'] as bool? ?? true,
     );

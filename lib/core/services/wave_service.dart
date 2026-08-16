@@ -8,6 +8,13 @@ class WaveService {
     return canLaunchUrl(Uri.parse('wave://'));
   }
 
+  /// Opens Wave prefilled with [amount] for [phoneNumber].
+  ///
+  /// Constraint: the wave:// deep link (and the pay.wave.com fallback) only
+  /// accept whole integer amounts — Wave operates on XOF, a zero-decimal
+  /// currency. Callers must round BEFORE calling and record that same
+  /// rounded value in the settlement ledger, so the amount requested in
+  /// Wave and the amount recorded in the app never diverge.
   static Future<bool> launchWavePayment({
     required String phoneNumber,
     required int amount,
